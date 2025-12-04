@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+yfinance
+pandas
+requests
+urllib3>=1.26.18
