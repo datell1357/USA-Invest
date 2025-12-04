@@ -14,6 +14,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Render Health Check 용도. 항상 200 OK를 리턴합니다.
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
 @app.get("/")
 def read_root():
     return {"status": "Zero Gravity Backend is Running"}
