@@ -4,267 +4,349 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>금융 마인드맵</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <title>Global Finance Dashboard</title>
     <style>
         :root {
-            --bg-color: #1a1a1a;
-            --text-color: #ffffff;
-            --accent-red: #ff6b6b;
-            --accent-blue: #4dabf7;
-            --glass-bg: rgba(255, 255, 255, 0.08);
-            --glass-border: rgba(255, 255, 255, 0.2);
-            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            /* Premium Dark Theme Palette */
+            --bg-dark: #0f172a;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --bg-card-hover: rgba(255, 255, 255, 0.06);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-gold: #fbbf24;
+            --accent-red: #f87171;
+            --accent-green: #4ade80;
+            --glass-blur: 16px;
+            --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
         }
 
         body {
             margin: 0;
             padding: 0;
-            background: radial-gradient(circle at center, #2c2c2c 0%, #121212 100%);
-            color: var(--text-color);
-            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
-            overflow: hidden;
-            width: 100vw;
-            height: 100vh;
+            /* Deep, Rich Gradient Background */
+            background: radial-gradient(circle at top right, #1e293b, #0f172a 60%, #020617);
+            color: var(--text-primary);
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
         }
 
-        /* Header Navigation */
+        /* --- Header --- */
         header {
-            position: absolute;
-            top: 0;
-            left: 0;
             width: 100%;
-            padding: 40px 0;
+            padding: 2rem 0;
             display: flex;
-            justify-content: center;
-            gap: 15px;
-            z-index: 1000;
-            pointer-events: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+            z-index: 100;
+        }
+
+        .header-title {
+            font-size: 1rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .nav-container {
+            display: flex;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.5rem;
+            border-radius: 9999px;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(var(--glass-blur));
         }
 
         .nav-btn {
-            pointer-events: auto;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: rgba(255, 255, 255, 0.6);
-            padding: 12px 28px;
-            border-radius: 50px;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 0.6rem 1.5rem;
+            border-radius: 9999px;
             cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-            backdrop-filter: blur(12px);
-            font-size: 1rem;
-            font-weight: 600;
-            letter-spacing: -0.02em;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease;
+            font-size: 0.95rem;
+            font-weight: 500;
         }
 
         .nav-btn:hover {
-            background: rgba(255, 255, 255, 0.15);
-            transform: translateY(-2px);
-            color: #fff;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
         }
 
         .nav-btn.active {
-            background: rgba(255, 255, 255, 0.9);
-            color: #000;
-            border-color: #fff;
-            box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
-            transform: scale(1.05);
+            background: var(--text-primary);
+            color: var(--bg-dark);
+            font-weight: 700;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
         }
 
-        /* Physics Container */
-        #physics-container {
-            position: absolute;
-            top: 0;
-            left: 0;
+        /* --- Main Grid Layout --- */
+        main {
+            flex: 1;
             width: 100%;
-            height: 100%;
-            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1rem 2rem 4rem;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
         }
 
-        /* DOM Nodes Overlay */
-        #nodes-container {
-            position: absolute;
-            top: 0;
-            left: 0;
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
             width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 10;
         }
 
-        .node {
-            position: absolute;
+        /* --- Card Styles --- */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1.5rem;
+            padding: 1.75rem;
+            backdrop-filter: blur(var(--glass-blur));
+            transition: transform 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
             display: flex;
             flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            border-radius: 50%;
-
-            /* Premium 3D Glass Effect */
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.02) 100%);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-top: 1px solid rgba(255, 255, 255, 0.4);
-            border-left: 1px solid rgba(255, 255, 255, 0.3);
-
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-
-            box-shadow:
-                0 15px 35px rgba(0, 0, 0, 0.4),
-                inset 0 0 20px rgba(255, 255, 255, 0.05);
-
-            color: #fff;
-            pointer-events: auto;
-            user-select: none;
-            transform: translate(-50%, -50%);
-            transition: box-shadow 0.3s, border-color 0.3s;
+            justify-content: space-between;
+            min-height: 180px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--shadow-card);
         }
 
-        .node:hover {
-            border-color: rgba(255, 255, 255, 0.5);
-            box-shadow:
-                0 20px 40px rgba(0, 0, 0, 0.5),
-                inset 0 0 30px rgba(255, 255, 255, 0.1);
-            z-index: 100;
-            cursor: grab;
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+            pointer-events: none;
         }
 
-        .node:active {
-            cursor: grabbing;
+        .card:hover {
+            transform: translateY(-5px);
+            background: var(--bg-card-hover);
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.15);
         }
 
-        .node.central {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.05) 100%);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 0 50px rgba(255, 255, 255, 0.1);
-            z-index: 20;
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
         }
 
-        /* Typography */
-        .node-title {
-            font-size: 0.95rem;
-            color: rgba(255, 255, 255, 0.8);
-            margin-bottom: 8px;
+        .card-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
             font-weight: 500;
-            letter-spacing: -0.01em;
+            letter-spacing: 0.02em;
         }
 
-        .node-value {
-            font-size: 1.6rem;
-            font-weight: 800;
-            letter-spacing: -0.03em;
-            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        .card-change-badge {
+            font-size: 0.8rem;
+            padding: 0.25rem 0.6rem;
+            border-radius: 0.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        .card-body {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .card-value {
+            font-size: 2.2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
             line-height: 1.1;
         }
 
-        .node-change {
-            font-size: 0.85rem;
-            margin-top: 6px;
-            font-weight: 600;
-            padding: 4px 10px;
-            border-radius: 12px;
-            background: rgba(0, 0, 0, 0.3);
-            backdrop-filter: blur(4px);
+        .card-subtext {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            opacity: 0.7;
         }
 
-        /* Group Node Styling */
-        .node-group-list {
+        /* --- Group Card (Table Style) --- */
+        .card.group-card {
+            grid-row: span 2;
+            /* Make group cards taller */
+            min-height: 380px;
+        }
+
+        .group-list {
             display: flex;
             flex-direction: column;
-            gap: 6px;
-            width: 85%;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
         }
 
         .group-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 0.9rem;
-            padding: 4px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 0.75rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
 
         .group-item:last-child {
             border-bottom: none;
         }
 
-        .group-label {
-            color: rgba(255, 255, 255, 0.7);
+        .group-item-name {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
             font-weight: 500;
-            text-align: left;
-            flex: 1;
         }
 
-        .group-val {
-            font-weight: 700;
-            font-size: 1rem;
+        .group-item-data {
             text-align: right;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
         }
 
-        /* USA Rates Extra Column */
-        .group-change-col {
-            font-size: 0.75rem;
-            text-align: right;
-            margin-left: 10px;
+        .group-item-val {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .group-item-change {
+            font-size: 0.8rem;
             opacity: 0.9;
-            min-width: 80px;
         }
 
-        /* Date Info */
-        .date-info {
-            font-size: 0.7rem;
-            color: rgba(255, 255, 255, 0.5);
-            margin-top: 2px;
-            font-weight: 400;
+        /* --- Large Card Variant (for sparse data) --- */
+        .card.card-large {
+            justify-content: center;
+            align-items: center;
+            text-align: center;
         }
 
-        /* Colors */
-        .up {
+        .card.card-large .card-header {
+            width: 100%;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .card.card-large .card-label {
+            font-size: 1.2rem;
+            opacity: 0.8;
+        }
+
+        .card.card-large .group-list {
+            width: 100%;
+            align-items: center;
+        }
+
+        .card.card-large .group-item {
+            flex-direction: column;
+            gap: 0.5rem;
+            border-bottom: none;
+            padding: 0;
+        }
+
+        .card.card-large .group-item-name {
+            display: none;
+            /* Hide label if redundant or keep minimal */
+        }
+
+        .card.card-large .group-item-val {
+            font-size: 3.5rem;
+            /* Much larger */
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .card.card-large .group-item-change {
+            font-size: 1.2rem;
+            margin-top: 0.5rem;
+            padding: 0.3rem 0.8rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 1rem;
+        }
+
+        /* --- Colors & Utilities --- */
+        .text-up {
             color: var(--accent-red);
         }
 
-        .down {
-            color: var(--accent-blue);
+        .text-down {
+            color: var(--accent-green);
         }
 
-        /* SVG Lines */
-        #lines-svg {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 5;
+        .c-up {
+            color: #ff6b6b;
         }
 
-        line {
-            stroke: rgba(255, 255, 255, 0.15);
-            stroke-width: 2;
-            stroke-linecap: round;
+        .c-down {
+            color: #4dabf7;
         }
 
-        /* Loading Animation */
-        @keyframes shimmer {
-            0% {
+        .bg-up {
+            background: rgba(255, 107, 107, 0.15);
+            color: #ff6b6b;
+        }
+
+        .bg-down {
+            background: rgba(77, 171, 247, 0.15);
+            color: #4dabf7;
+        }
+
+        .loading-pulse {
+            animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            opacity: 0.5;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
                 opacity: 0.5;
             }
 
             50% {
-                opacity: 1;
-            }
-
-            100% {
-                opacity: 0.5;
+                opacity: 0.2;
             }
         }
 
-        .loading {
-            animation: shimmer 1.5s infinite;
-            color: rgba(255, 255, 255, 0.5);
+        /* Responsive Breakpoints */
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+            main {
+                padding: 1rem;
+            }
+
+            .header-title {
+                display: none;
+                /* Simplify header on mobile */
+            }
         }
     </style>
 </head>
@@ -272,15 +354,18 @@
 <body>
 
     <header>
-        <button class="nav-btn active" onclick="switchCategory('stocks')">미국 증시</button>
-        <button class="nav-btn" onclick="switchCategory('economy')">실물경제</button>
-        <button class="nav-btn" onclick="switchCategory('rates')">금리</button>
-        <button class="nav-btn" onclick="switchCategory('exchange')">환율</button>
+        <div class="header-title" id="current-date">Thinking of Time...</div>
+        <nav class="nav-container">
+            <button class="nav-btn active" onclick="switchCategory('stocks')">미국 증시</button>
+            <button class="nav-btn" onclick="switchCategory('economy')">실물경제</button>
+            <button class="nav-btn" onclick="switchCategory('rates')">금리</button>
+            <button class="nav-btn" onclick="switchCategory('exchange')">환율</button>
+        </nav>
     </header>
 
-    <div id="physics-container"></div>
-    <svg id="lines-svg"></svg>
-    <div id="nodes-container"></div>
+    <main id="main-content">
+        <!-- Content injected by JS -->
+    </main>
 
     <script>
         // --- Configuration ---
@@ -294,28 +379,21 @@
                     {
                         id: 'us_market',
                         label: '미국 3대 지수',
-                        radius: 170, // Increased for extra column
                         items: [
-                            { id: 'sp_futures', label: 'S&P 500' },
-                            { id: 'dow_futures', label: 'DOW' },
-                            { id: 'nasdaq_futures', label: 'NASDAQ' }
+                            { id: 'sp_futures', label: 'S&P 500', url: 'https://kr.investing.com/indices/us-spx-500-futures' },
+                            { id: 'dow_futures', label: 'DOW', url: 'https://kr.investing.com/indices/us-30-futures' },
+                            { id: 'nasdaq_futures', label: 'NASDAQ', url: 'https://kr.investing.com/indices/nq-100-futures' }
                         ]
                     },
                     {
                         id: 'vix_group',
                         label: '변동성 지수',
-                        radius: 80,
-                        items: [
-                            { id: 'vix', label: 'VIX' }
-                        ]
+                        items: [{ id: 'vix', label: 'VIX', url: 'https://kr.investing.com/indices/volatility-s-p-500' }]
                     },
                     {
                         id: 'fg_group',
-                        label: '투자 심리',
-                        radius: 80,
-                        items: [
-                            { id: 'fear_greed', label: '공포&탐욕' }
-                        ]
+                        label: '공포탐욕 지수', // Renamed
+                        items: [{ id: 'fear_greed', label: '공포탐욕 지수', url: 'https://edition.cnn.com/markets/fear-and-greed' }]
                     }
                 ]
             },
@@ -323,10 +401,10 @@
                 title: "실물경제",
                 type: 'single',
                 items: [
-                    { id: 'cci', label: '소비자신뢰' },
-                    { id: 'pmi', label: '제조업 PMI' },
-                    { id: 'unemployment', label: '실업률' },
-                    { id: 'non_farm', label: '고용지수' }
+                    { id: 'cci', label: '소비자신뢰지수', url: 'https://kr.investing.com/economic-calendar/cb-consumer-confidence-48' },
+                    { id: 'pmi', label: '제조업 PMI', url: 'https://kr.investing.com/economic-calendar/ism-manufacturing-pmi-173' },
+                    { id: 'unemployment', label: '실업률', url: 'https://kr.investing.com/economic-calendar/unemployment-rate-300' },
+                    { id: 'non_farm', label: '비농업고용', url: 'https://kr.investing.com/economic-calendar/nonfarm-payroll-227' }
                 ]
             },
             rates: {
@@ -334,466 +412,368 @@
                 type: 'grouped',
                 groups: [
                     {
-                        id: 'usa',
-                        label: '미국 (USA)',
-                        radius: 170, // Increased for extra column
+                        id: 'usa', label: '미국 (USA)',
                         items: [
-                            { id: 'us_10y', label: '10년물' },
-                            { id: 'us_2y', label: '2년물' },
-                            { id: 'us_10_2_spread', label: '10-2년차' },
-                            { id: 'fed_rate', label: '기준금리' }
+                            { id: 'us_10y', label: '10년물', url: 'https://kr.investing.com/rates-bonds/u.s.-10-year-bond-yield' },
+                            { id: 'us_2y', label: '2년물', url: 'https://kr.investing.com/rates-bonds/u.s.-2-year-bond-yield' },
+                            { id: 'us_10_2_spread', label: '10-2년차', url: 'https://fred.stlouisfed.org/series/T10Y2Y' },
+                            { id: 'fed_rate', label: '기준금리', url: 'https://kr.investing.com/central-banks/fed/interest-rate-monitor' }
                         ]
                     },
                     {
-                        id: 'japan',
-                        label: '일본 (JPN)',
-                        radius: 90,
+                        id: 'japan', label: '일본 (JPN)',
                         items: [
-                            { id: 'jp_2y', label: '2년물' },
-                            { id: 'jp_policy', label: '정책금리' }
+                            { id: 'jp_2y', label: '2년물', url: 'https://kr.investing.com/rates-bonds/japan-2-year-bond-yield' },
+                            { id: 'jp_policy', label: '정책금리', url: 'https://kr.investing.com/central-banks/boj' }
                         ]
                     },
                     {
-                        id: 'korea',
-                        label: '한국 (KOR)',
-                        radius: 135,
+                        id: 'korea', label: '한국 (KOR)',
                         items: [
-                            { id: 'kr_10y', label: '10년물' },
-                            { id: 'kr_2y', label: '2년물' },
-                            { id: 'kr_base', label: '기준금리' }
+                            { id: 'kr_10y', label: '10년물', url: 'https://kr.investing.com/rates-bonds/south-korea-10-year-bond-yield' },
+                            { id: 'kr_2y', label: '2년물', url: 'https://kr.investing.com/rates-bonds/south-korea-2-year-bond-yield' },
+                            { id: 'kr_base', label: '기준금리', url: 'https://kr.investing.com/central-banks/bok' }
                         ]
                     },
                     {
-                        id: 'sofr',
-                        label: 'SOFR',
-                        radius: 70,
-                        items: [
-                            { id: 'sofr', label: 'SOFR' }
-                        ]
+                        id: 'sofr', label: 'SOFR',
+                        items: [{ id: 'sofr', label: 'SOFR', url: 'https://www.newyorkfed.org/markets/reference-rates/sofr' }]
                     }
                 ]
             },
             exchange: {
-                title: "환율",
+                title: "환율 및 기타",
                 type: 'single',
                 items: [
-                    { id: 'dxy', label: '달러인덱스' },
-                    { id: 'usd_krw', label: '원/달러' },
-                    { id: 'usdc', label: 'USDC' },
-                    { id: 'cds', label: 'CDS' },
-                    { id: 'forex_res', label: '외환보유고' },
-                    { id: 'foreign_bond', label: '외국인채권' }
+                    { id: 'dxy', label: '달러인덱스', url: 'https://kr.investing.com/currencies/us-dollar-index' },
+                    { id: 'usd_krw', label: '원/달러 환율', url: 'https://kr.investing.com/currencies/usd-krw' },
+                    { id: 'usdc', label: 'USDC', url: 'https://coinmarketcap.com/currencies/usd-coin/' },
+                    { id: 'cds', label: 'CDS 프리미엄', url: 'http://www.korea.kr/special/policyCurationView.do?newsId=148866597' }, // Example generic
+                    { id: 'forex_res', label: '외환보유고', url: 'https://www.bok.or.kr/' },
+                    { id: 'foreign_bond', label: '외국인 채권매수', url: 'https://www.bok.or.kr/' }
                 ]
             }
         };
 
         let currentCategory = 'stocks';
-        let engine, world, runner;
-        let centralBody;
-        let dataBodies = [];
-        let mouseConstraint;
+        let dataStore = {}; // Cache data to prevent flickering on switch if desired
 
-        // --- Storage Helper ---
-        const STORAGE_KEY = 'gravity_dashboard_positions_v1';
+        // --- Init ---
+        window.onload = () => {
+            updateDate();
+            renderLayout(currentCategory);
+        };
 
-        function getSavedPositions() {
-            try {
-                return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-            } catch (e) {
-                return {};
+        function updateDate() {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+            document.getElementById('current-date').innerText = dateStr;
+        }
+
+        function switchCategory(cat) {
+            if (currentCategory === cat) return;
+            currentCategory = cat;
+
+            // Update Nav
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = Array.from(document.querySelectorAll('.nav-btn')).find(b => b.getAttribute('onclick').includes(cat));
+            if (activeBtn) activeBtn.classList.add('active');
+
+            renderLayout(cat);
+        }
+
+        // --- Core Rendering ---
+        function renderLayout(category) {
+            const main = document.getElementById('main-content');
+            main.innerHTML = ''; // Clear
+
+            const container = document.createElement('div');
+            container.className = 'dashboard-grid';
+            main.appendChild(container);
+
+            const config = CATEGORIES[category];
+
+            if (config.type === 'single') {
+                config.items.forEach(item => {
+                    const card = createSingleCard(item);
+                    container.appendChild(card);
+                });
+            } else {
+                config.groups.forEach(group => {
+                    const card = createGroupCard(group);
+                    container.appendChild(card);
+                });
             }
+
+            fetchData(category);
         }
 
-        function saveNodePosition(category, id, position, center) {
-            const saved = getSavedPositions();
-            if (!saved[category]) saved[category] = {};
-
-            saved[category][id] = {
-                dx: position.x - center.x,
-                dy: position.y - center.y
-            };
-
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+        function openLink(url) {
+            if (url) window.open(url, '_blank');
         }
 
-        // --- Matter.js Setup ---
-        function initPhysics() {
-            const { Engine, World, Bodies, Runner, Mouse, MouseConstraint, Composite, Events } = Matter;
+        function createSingleCard(item) {
+            const div = document.createElement('div');
+            div.className = 'card';
+            div.id = `card-${item.id}`;
+            // Interactive Style
+            div.style.cursor = item.url ? 'pointer' : 'default';
+            if (item.url) {
+                div.onclick = () => openLink(item.url);
+            }
 
-            engine = Engine.create();
-            world = engine.world;
-
-            engine.world.gravity.y = 0;
-            engine.world.gravity.x = 0;
-
-            runner = Runner.create();
-            Runner.run(runner, engine);
-
-            const mouse = Mouse.create(document.body);
-            mouseConstraint = MouseConstraint.create(engine, {
-                mouse: mouse,
-                constraint: {
-                    stiffness: 0.1,
-                    render: { visible: false }
-                }
-            });
-            Composite.add(world, mouseConstraint);
-
-            Events.on(mouseConstraint, 'enddrag', function (event) {
-                const body = event.body;
-                const dataNode = dataBodies.find(n => n.body === body);
-
-                if (dataNode && centralBody) {
-                    saveNodePosition(currentCategory, dataNode.item.id, body.position, centralBody.position);
-                    const dist = Matter.Vector.magnitude(Matter.Vector.sub(body.position, centralBody.position));
-                    if (dataNode.constraint) {
-                        dataNode.constraint.length = dist;
-                    }
-                }
-            });
-
-            document.body.addEventListener('contextmenu', (e) => e.preventDefault());
-            requestAnimationFrame(update);
-        }
-
-        // --- Node Creation ---
-        function createNodes() {
-            const { Bodies, Composite, Constraint } = Matter;
-
-            const bodiesToRemove = Composite.allBodies(world).filter(b => b !== centralBody);
-            Composite.clear(world, false);
-            Composite.add(world, mouseConstraint);
-            dataBodies = [];
-
-            const container = document.getElementById('nodes-container');
-            container.innerHTML = '';
-
-            const width = window.innerWidth;
-            const height = window.innerHeight;
-
-            // 1. Central Node
-            const centralRadius = 95;
-            centralBody = Bodies.circle(width / 2, height / 2, centralRadius, {
-                isStatic: true,
-                label: 'central'
-            });
-            Composite.add(world, centralBody);
-
-            const centralEl = document.createElement('div');
-            centralEl.className = 'node central';
-            centralEl.style.width = `${centralRadius * 2}px`;
-            centralEl.style.height = `${centralRadius * 2}px`;
-
-            const today = new Date();
-            const dateStr = `${today.getMonth() + 1}/${today.getDate()}`;
-
-            centralEl.innerHTML = `
-                <div class="node-title" style="font-size: 1.2rem; color: #fff; opacity: 0.9; margin-bottom: 0;">${dateStr}</div>
-                <div class="node-value" style="font-size: 1.8rem; margin-top: 5px;">${CATEGORIES[currentCategory].title}</div>
+            div.innerHTML = `
+                <div class="card-header">
+                    <span class="card-label">${item.label}</span>
+                    <span class="card-change-badge loading-pulse" id="badge-${item.id}">--</span>
+                </div>
+                <div class="card-body">
+                    <span class="card-value loading-pulse" id="val-${item.id}">...</span>
+                    <!-- Subtext can hold date/future info -->
+                    <span class="card-subtext" id="sub-${item.id}"></span>
+                </div>
             `;
-            centralEl.id = 'node-central';
-            container.appendChild(centralEl);
-
-            // 2. Data Nodes
-            const categoryConfig = CATEGORIES[currentCategory];
-            const orbitRadius = Math.min(width, height) * 0.3;
-            const savedPositions = getSavedPositions()[currentCategory] || {};
-
-            if (categoryConfig.type === 'single') {
-                const items = categoryConfig.items;
-                items.forEach((item, index) => {
-                    createOrbitingNode(item, index, items.length, orbitRadius, 70, 'single', savedPositions[item.id]);
-                });
-            } else if (categoryConfig.type === 'grouped') {
-                const groups = categoryConfig.groups;
-                groups.forEach((group, index) => {
-                    createOrbitingNode(group, index, groups.length, orbitRadius, group.radius, 'grouped', savedPositions[group.id]);
-                });
-            }
-
-            fetchData(currentCategory);
+            return div;
         }
 
-        function createOrbitingNode(dataItem, index, total, orbitRadius, radius, type, savedPos) {
-            const { Bodies, Composite, Constraint } = Matter;
-            const width = window.innerWidth;
-            const height = window.innerHeight;
+        function createGroupCard(group) {
+            const div = document.createElement('div');
+            // If group has only 1 item, use Large Card style
+            const isSingleItem = group.items.length === 1;
+            div.className = isSingleItem ? 'card group-card card-large' : 'card group-card';
+            div.id = `group-${group.id}`;
 
-            let x, y, constraintLength;
+            let listHtml = group.items.map(subItem => {
+                const clickableStyle = subItem.url ? 'cursor:pointer;' : '';
+                const clickAttr = subItem.url ? `onclick="window.open('${subItem.url}', '_blank'); event.stopPropagation();"` : '';
 
-            if (savedPos) {
-                x = (width / 2) + savedPos.dx;
-                y = (height / 2) + savedPos.dy;
-                constraintLength = Math.sqrt(savedPos.dx * savedPos.dx + savedPos.dy * savedPos.dy);
-            } else {
-                const angle = (index / total) * 2 * Math.PI - (Math.PI / 2);
-                x = width / 2 + Math.cos(angle) * orbitRadius;
-                y = height / 2 + Math.sin(angle) * orbitRadius;
-                constraintLength = orbitRadius;
-            }
-
-            const body = Bodies.circle(x, y, radius, {
-                frictionAir: 0.3,
-                restitution: 0.2,
-                density: 0.01,
-                label: dataItem.id
-            });
-
-            const constraint = Constraint.create({
-                bodyA: centralBody,
-                bodyB: body,
-                stiffness: 0.005,
-                damping: 0.1,
-                length: constraintLength
-            });
-
-            Composite.add(world, [body, constraint]);
-
-            const el = document.createElement('div');
-            el.className = 'node';
-            el.id = `node-${dataItem.id}`;
-            el.style.width = `${radius * 2}px`;
-            el.style.height = `${radius * 2}px`;
-
-            if (type === 'single') {
-                el.innerHTML = `
-                    <div class="node-title">${dataItem.label}</div>
-                    <div class="node-value loading">...</div>
-                `;
-            } else {
-                // Grouped Layout
-                let listHtml = dataItem.items.map(sub => `
-                    <div class="group-item" id="val-${sub.id}">
-                        <span class="group-label">${sub.label}</span>
-                        <span class="group-val loading">...</span>
-                        ${(dataItem.id === 'usa' || dataItem.id === 'us_market') ? '<span class="group-change-col"></span>' : ''}
+                return `
+                <div class="group-item" id="row-${subItem.id}" style="${clickableStyle}" ${clickAttr}>
+                    <span class="group-item-name" style="${isSingleItem ? 'display:none' : ''}">${subItem.label}</span>
+                    <div class="group-item-data">
+                        <span class="group-item-val loading-pulse" id="val-${subItem.id}">...</span>
+                        <span class="group-item-change" id="change-${subItem.id}"></span>
                     </div>
-                `).join('');
-
-                el.innerHTML = `
-                    <div class="node-title" style="margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 4px; width: 90%; font-weight: 700;">${dataItem.label}</div>
-                    <div class="node-group-list">
-                        ${listHtml}
-                    </div>
+                </div>
                 `;
-            }
+            }).join('');
 
-            document.getElementById('nodes-container').appendChild(el);
-
-            dataBodies.push({
-                body,
-                item: dataItem,
-                elementId: `node-${dataItem.id}`,
-                type,
-                constraint
-            });
+            div.innerHTML = `
+                <div class="card-header">
+                    <span class="card-label" style="font-size:${isSingleItem ? '1.3rem' : '1.1rem'}; color:var(--text-primary);">${group.label}</span>
+                </div>
+                <div class="group-list">
+                    ${listHtml}
+                </div>
+            `;
+            return div;
         }
 
-        // --- Data Fetching ---
+        // --- Mock Data for Local Testing ---
+        const MOCK_DATA = {
+            stocks: {
+                "sp_futures": { value: "4,785.20", change: "+12.5", percent: "0.26", raw_change: 12.5, raw_percent: 0.26 },
+                "dow_futures": { value: "37,650.00", change: "-45.0", percent: "-0.12", raw_change: -45.0, raw_percent: -0.12 },
+                "nasdaq_futures": { value: "16,890.50", change: "+55.2", percent: "0.33", raw_change: 55.2, raw_percent: 0.33 },
+                "vix": { value: "13.45", change: "-0.20", percent: "-1.45" },
+                "fear_greed": { value: "40", change: "0" } // Fixed to 40
+            },
+            economy: {
+                "cci": { value: "102.5", change: "+1.2", date: "2024-03-24" },
+                "pmi": { value: "49.8", change: "-0.5", date: "2024-03-23" },
+                "unemployment": { value: "3.9%", change: "0.0", date: "2024-03-10" },
+                "non_farm": { value: "275K", change: "+25K", date: "2024-03-10" }
+            },
+            rates: {
+                "us_10y": { value: "4.25", change: "+0.05", percent: "1.18" },
+                "us_2y": { value: "4.62", change: "+0.02", percent: "0.43" },
+                "us_10_2_spread": { value: "-0.37", change: "-0.01" },
+                "fed_rate": { value: "5.50", change: "0.00" },
+                "jp_2y": { value: "0.18", change: "+0.01" },
+                "jp_policy": { value: "-0.10", change: "0.00" },
+                "kr_10y": { value: "3.45", change: "-0.02" },
+                "kr_2y": { value: "3.38", change: "-0.01" },
+                "kr_base": { value: "3.50", change: "0.00" },
+                "sofr": { value: "5.31", change: "0.00" }
+            },
+            exchange: {
+                "dxy": { value: "103.45", change: "+0.12", percent: "0.11" },
+                "usd_krw": { value: "1,345.50", change: "+5.50", percent: "0.41", raw_change: 5.50 },
+                "usdc": { value: "1.00", change: "0.00" },
+                "cds": { value: "35.2", change: "-0.5" },
+                "forex_res": { value: "415.2B", change: "+1.2B" },
+                "foreign_bond": { value: "+2.5T", change: "Buy" }
+            }
+        };
+
+        // --- Data Fetching & Updating ---
         async function fetchData(category) {
             try {
+                // Try fetching real data
                 const response = await fetch(`${API_BASE_URL}${category}`);
-                if (!response.ok) throw new Error('Network response was not ok');
+                if (!response.ok) throw new Error('Network err');
                 const data = await response.json();
-                updateNodesWithData(data);
+                updateUI(category, data);
             } catch (error) {
-                console.error("Fetch error:", error);
-                updateNodesWithError();
+                console.warn("Fetch failed, using mock data:", error);
+                // Fallback to mock data
+                if (MOCK_DATA[category]) {
+                    updateUI(category, MOCK_DATA[category]);
+                }
             }
         }
 
-        function updateNodesWithData(data) {
-            dataBodies.forEach(({ item, elementId, type }) => {
-                const el = document.getElementById(elementId);
-                if (!el) return;
+        function updateUI(category, data) {
+            const config = CATEGORIES[category];
 
-                if (type === 'single') {
-                    const key = item.id;
-                    const valObj = data[key] || data[item.label];
+            if (config.type === 'single') {
+                config.items.forEach(item => {
+                    const valObj = data[item.id] || data[item.label];
+                    if (!valObj) return;
 
-                    if (valObj) {
-                        let { value, change, date, next_date } = parseValue(valObj);
-                        let directionClass = getDirectionClass(change);
-                        let changeHtml = directionClass ? `<span class="${directionClass}">${change}</span>` : change;
+                    const { value, change, date, next_date } = parseValue(valObj);
 
-                        let htmlContent = `<div class="node-title">${item.label}</div>`;
-
-                        // Economy & Exchange with Dates
-                        if (currentCategory === 'economy' || (currentCategory === 'exchange' && (date || next_date))) {
-                            htmlContent += `<div class="node-value ${directionClass}">${value}</div>`;
-
-                            let dateHtml = '';
-                            if (date) dateHtml += `<div>${date}</div>`;
-                            if (next_date) dateHtml += `<div>다음: ${next_date}</div>`;
-
-                            if (dateHtml) {
-                                htmlContent += `<div class="date-info">${dateHtml}</div>`;
-                            } else {
-                                htmlContent += `<div class="node-change">${changeHtml}</div>`;
-                            }
-                        } else if (item.id === 'usdc') {
-                            // USDC Special Case: Value Only
-                            htmlContent += `<div class="node-value">${value}</div>`;
-                        } else {
-                            htmlContent += `<div class="node-value ${directionClass}">${value}</div>`;
-                            htmlContent += `<div class="node-change">${changeHtml}</div>`;
-                        }
-                        el.innerHTML = htmlContent;
-                    } else {
-                        el.innerHTML = `<div class="node-title">${item.label}</div><div class="node-value">N/A</div>`;
+                    // Value
+                    const valEl = document.getElementById(`val-${item.id}`);
+                    if (valEl) {
+                        valEl.innerText = value;
+                        valEl.classList.remove('loading-pulse');
                     }
 
-                } else {
-                    // Grouped Nodes
-                    item.items.forEach(subItem => {
-                        const row = el.querySelector(`#val-${subItem.id}`);
-                        if (!row) return;
+                    // Badge (Change)
+                    const badgeEl = document.getElementById(`badge-${item.id}`);
+                    if (badgeEl) {
+                        const dir = getDirection(change);
+                        // Format Change if numeric
+                        let txt = change || '-';
+                        if (canFormat(txt)) {
+                            txt = formatNumber(txt);
+                        }
 
-                        const valEl = row.querySelector('.group-val');
-                        const changeCol = row.querySelector('.group-change-col');
+                        badgeEl.innerText = txt;
+                        badgeEl.className = 'card-change-badge'; // reset
+                        badgeEl.classList.remove('loading-pulse');
+                        if (dir === 'up') badgeEl.classList.add('bg-up');
+                        if (dir === 'down') badgeEl.classList.add('bg-down');
+                    }
 
-                        const key = subItem.id;
-                        const valObj = data[key] || data[subItem.label];
+                    // Subtext (Dates)
+                    const subEl = document.getElementById(`sub-${item.id}`);
+                    if (subEl) {
+                        let txt = '';
+                        if (date) txt += `발표: ${date} `;
+                        if (next_date) txt += ` | 다음: ${next_date}`;
+                        subEl.innerText = txt;
+                    }
+                });
 
-                        if (valObj) {
-                            let { value, change, percent, is_percent, raw_change, raw_percent } = valObj;
+            } else {
+                // Grouped
+                config.groups.forEach(group => {
+                    group.items.forEach(item => {
+                        const key = item.id;
+                        const valObj = data[key] || data[item.label];
+                        if (!valObj) return;
 
-                            // Normalize numeric values for calculation
-                            let numChange = (raw_change !== undefined) ? raw_change : change;
-                            let numPercent = (raw_percent !== undefined) ? raw_percent : percent;
+                        const valEl = document.getElementById(`val-${item.id}`);
+                        const changeEl = document.getElementById(`change-${item.id}`);
 
-                            // USA Special Formatting (Rates & Stocks)
-                            if (item.id === 'usa' || item.id === 'us_market') {
-                                // Value
-                                let displayVal = value;
-                                if (is_percent) displayVal += '%'; // Fed Rate
-
-                                valEl.innerText = displayVal;
-                                valEl.className = 'group-val'; // Reset color
-                                valEl.classList.remove('loading');
-
-                                // Change Column
-                                if (changeCol) {
-                                    let dir = getDirectionClass(numChange);
-                                    let sign = numChange > 0 ? '▲' : (numChange < 0 ? '▼' : '');
-                                    let absChange = Math.abs(numChange).toFixed(2);
-                                    let absPercent = Math.abs(numPercent).toFixed(2);
-
-                                    changeCol.innerHTML = `${sign} ${absChange}/${absPercent}%`;
-                                    changeCol.className = `group-change-col ${dir}`;
-                                }
-                            } else {
-                                // Asia (Japan/Korea) - All Percent
-                                let displayVal = value;
-                                // Add % if not already there (simple check)
-                                if (!displayVal.toString().includes('%')) displayVal += '%';
-
-                                let dir = getDirectionClass(numChange);
-
-                                valEl.innerText = displayVal;
-                                valEl.className = `group-val ${dir}`;
-                                valEl.classList.remove('loading');
+                        if (valEl) {
+                            let displayVal = valObj.value;
+                            // Add % logic if needed
+                            if (group.id === 'usa' && item.id === 'fed_rate') displayVal += '%';
+                            if (group.id === 'japan' || group.id === 'korea') {
+                                if (!String(displayVal).includes('%')) displayVal += '%';
                             }
-                        } else {
-                            valEl.innerText = 'N/A';
-                            valEl.classList.remove('loading');
+
+                            // Fear & Greed Special: Add %
+                            if (item.id === 'fear_greed') {
+                                displayVal += '%';
+                            }
+                            // SOFR Special: Add %
+                            if (item.id === 'sofr') {
+                                displayVal += '%';
+                            }
+
+                            valEl.innerText = displayVal;
+                            valEl.classList.remove('loading-pulse');
+                        }
+
+                        if (changeEl) {
+                            // Fear & Greed: Hide change if user requested "remove 0.00"
+                            if (item.id === 'fear_greed') {
+                                changeEl.style.display = 'none';
+                                return;
+                            }
+
+                            // Logic for Change Text
+                            // User wants 2 decimals max.
+                            let rawChg = (valObj.raw_change !== undefined) ? valObj.raw_change : valObj.change;
+                            let rawPct = (valObj.raw_percent !== undefined) ? valObj.raw_percent : valObj.percent;
+
+                            let txt = '';
+                            const dir = getDirection(rawChg || valObj.change);
+
+                            // Format Logic
+                            let chgStr = '';
+                            let pctStr = '';
+
+                            if (canFormat(rawChg)) chgStr = formatNumber(rawChg);
+                            else if (valObj.change) chgStr = String(valObj.change); // fallback
+
+                            if (canFormat(rawPct)) pctStr = formatNumber(rawPct);
+                            else if (valObj.percent) pctStr = String(valObj.percent);
+
+
+                            if (chgStr && pctStr) {
+                                txt = `${chgStr} (${pctStr}%)`;
+                            } else if (chgStr) {
+                                txt = chgStr;
+                            } else {
+                                txt = '';
+                            }
+
+                            changeEl.innerText = txt;
+                            changeEl.className = 'group-item-change';
+                            if (dir === 'up') changeEl.classList.add('c-up');
+                            if (dir === 'down') changeEl.classList.add('c-down');
                         }
                     });
-                }
-            });
+                });
+            }
+        }
+
+        // --- Helpers ---
+        function canFormat(val) {
+            if (val === undefined || val === null || val === '') return false;
+            // Check if it's a number or a string looking like a number
+            return !isNaN(parseFloat(val));
+        }
+
+        function formatNumber(val) {
+            let f = parseFloat(val);
+            let s = f.toFixed(2);
+            if (f > 0) return '+' + s;
+            return s;
         }
 
         function parseValue(valObj) {
-            let value = valObj.value || 'N/A';
-            let change = valObj.change || '';
-            let date = valObj.date || '';
-            let next_date = valObj.next_date || '';
-            return { value, change, date, next_date };
+            // Helper to safe extract
+            return {
+                value: valObj.value || 'N/A',
+                change: valObj.change || '',
+                date: valObj.date || '',
+                next_date: valObj.next_date || ''
+            };
         }
 
-        function getDirectionClass(change) {
-            if (!change) return '';
-            let s = change.toString();
-            if (s.includes('+') || s.includes('▲') || (typeof change === 'number' && change > 0)) return 'up';
-            if (s.includes('-') || s.includes('▼') || (typeof change === 'number' && change < 0)) return 'down';
-            return '';
+        function getDirection(val) {
+            if (!val) return 'neutral';
+            const s = String(val);
+            if (s.includes('+') || s.includes('▲') || parseFloat(val) > 0) return 'up';
+            if (s.includes('-') || s.includes('▼') || parseFloat(val) < 0) return 'down';
+            return 'neutral';
         }
-
-        function updateNodesWithError() {
-            dataBodies.forEach(({ elementId, type, item }) => {
-                const el = document.getElementById(elementId);
-                if (!el) return;
-
-                if (type === 'single') {
-                    el.innerHTML = `
-                        <div class="node-title">${item.label}</div>
-                        <div class="node-value" style="color: rgba(255,255,255,0.3);">N/A</div>
-                    `;
-                } else {
-                    item.items.forEach(subItem => {
-                        const subEl = el.querySelector(`#val-${subItem.id} .group-val`);
-                        if (subEl) {
-                            subEl.innerText = 'N/A';
-                            subEl.style.color = 'rgba(255,255,255,0.3)';
-                            subEl.classList.remove('loading');
-                        }
-                    });
-                }
-            });
-        }
-
-        // --- Animation Loop ---
-        function update() {
-            if (centralBody) {
-                const centralEl = document.getElementById('node-central');
-                if (centralEl) {
-                    centralEl.style.transform = `translate(${centralBody.position.x}px, ${centralBody.position.y}px) translate(-50%, -50%)`;
-                }
-            }
-
-            const svg = document.getElementById('lines-svg');
-            let svgContent = '';
-
-            dataBodies.forEach(({ body, elementId }) => {
-                const el = document.getElementById(elementId);
-                if (el) {
-                    el.style.transform = `translate(${body.position.x}px, ${body.position.y}px) translate(-50%, -50%)`;
-                }
-
-                if (centralBody) {
-                    svgContent += `<line x1="${centralBody.position.x}" y1="${centralBody.position.y}" x2="${body.position.x}" y2="${body.position.y}" />`;
-                }
-            });
-
-            svg.innerHTML = svgContent;
-            requestAnimationFrame(update);
-        }
-
-        // --- Interaction ---
-        function switchCategory(category) {
-            if (currentCategory === category) return;
-
-            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-            const btns = Array.from(document.querySelectorAll('.nav-btn'));
-            const activeBtn = btns.find(b => b.getAttribute('onclick').includes(category));
-            if (activeBtn) activeBtn.classList.add('active');
-
-            currentCategory = category;
-            createNodes();
-        }
-
-        window.onload = () => {
-            initPhysics();
-            createNodes();
-        };
-
-        window.onresize = () => {
-            if (centralBody) {
-                Matter.Body.setPosition(centralBody, { x: window.innerWidth / 2, y: window.innerHeight / 2 });
-                createNodes();
-            }
-        };
-
     </script>
 </body>
 

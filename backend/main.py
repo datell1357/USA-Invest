@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi import Response
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import finance_service
@@ -19,9 +20,17 @@ app.add_middleware(
 def health_check():
     return {"status": "ok"}
 
+# UptimeBot Health Check 용도. 항상 200 OK를 리턴합니다.    
+@app.head("/")
+def head_root():
+    return Response(status_code=200)
+@app.head("/health")
+def head_health():
+    return Response(status_code=200)
+
 @app.get("/")
 def read_root():
-    return {"status": "Zero Gravity Backend is Running"}
+    return {"status": "USA Invest 백엔드 시스템이 정상 작동 중입니다."}
 
 @app.get("/api/finance/stocks")
 def get_stocks():
