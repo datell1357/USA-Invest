@@ -13,7 +13,18 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+
 )
+
+from fastapi.staticfiles import StaticFiles
+import os
+
+# Mount the parent directory to serve index.html
+# Careful not to expose sensitive files if meaningful, but for this demo it's fine.
+# We mount it at the root.
+# Note: Put this AFTER API routes so API takes precedence, OR use a specific path.
+# Actually, for 'html=True' at root, it acts as a catch-all.
+# Better to explicit API routes first.
 
 # Render Health Check 용도. 항상 200 OK를 리턴합니다.
 @app.get("/health")
@@ -28,9 +39,7 @@ def head_root():
 def head_health():
     return Response(status_code=200)
 
-@app.get("/")
-def read_root():
-    return {"status": "USA Invest 백엔드 시스템이 정상 작동 중입니다."}
+
 
 @app.get("/api/finance/stocks")
 def get_stocks():
@@ -47,6 +56,14 @@ def get_rates():
 @app.get("/api/finance/exchange")
 def get_exchange():
     return finance_service.get_exchange_data()
+
+# Serve Static Files (Frontend)
+try:
+    # Go up one level from 'backend' to 'USA Invest'
+    static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+except Exception as e:
+    print(f"Failed to mount static files: {e}")
 
 if __name__ == "__main__":
     # Run on localhost:8000
