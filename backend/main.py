@@ -1,10 +1,25 @@
 from fastapi import FastAPI
 from fastapi import Response
 from fastapi.middleware.cors import CORSMiddleware
+from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import datetime, timedelta
 import uvicorn
 import finance_service
 
 app = FastAPI()
+
+# 글로벌 캐시 추가
+CACHE = {
+    "stocks": {},
+    "economy": {},
+    "rates": {},
+    "exchange": {}
+}
+
+LAST_UPDATE = { "stocks": None }
+NEXT_UPDATE = { "stocks": None }
+
+scheduler = BackgroundScheduler(timezone="Asia/Seoul")
 
 # Enable CORS for frontend access
 app.add_middleware(
@@ -26,6 +41,32 @@ import os
 # Actually, for 'html=True' at root, it acts as a catch-all.
 # Better to explicit API routes first.
 
+def update_stocks_job():
+    try:
+        curr = finance_service.get_stocks_current_only()
+        for k, v in curr.items():
+            CACHE["stocks"][k]["current"] = v
+
+        now = datetime.now()
+
+        LAST_UPDATE["stocks"] = now
+        NEXT_UPDATE["stocks"] = now + timedelta(seconds=30)
+
+    except Exception as e:
+        print("[ERROR] update_stocks_job:", e)
+
+def update_rates_job():
+    print("[JOB] Updating rates (5 min)")
+    CACHE["rates"] = finance_service.get_rates_data()
+
+def update_exchange_job():
+    print("[JOB] Updating exchange (5 min)")
+    CACHE["exchange"] = finance_service.get_exchange_data()
+
+def update_economy_job():
+    print("[JOB] Updating economy (00:00, 12:00)")
+    CACHE["economy"] = finance_service.get_economy_data()
+
 # Render Health Check 용도. 항상 200 OK를 리턴합니다.
 @app.get("/health")
 def health_check():
@@ -40,22 +81,48 @@ def head_health():
     return Response(status_code=200)
 
 
-
 @app.get("/api/finance/stocks")
-def get_stocks():
-    return finance_service.get_stocks_data()
+def api_stocks():
+    return CACHE["stocks"]
 
 @app.get("/api/finance/economy")
-def get_economy():
-    return finance_service.get_economy_data()
+def api_economy():
+    return CACHE["economy"]
 
 @app.get("/api/finance/rates")
-def get_rates():
-    return finance_service.get_rates_data()
+def api_rates():
+    return CACHE["rates"]
 
 @app.get("/api/finance/exchange")
-def get_exchange():
-    return finance_service.get_exchange_data()
+def api_exchange():
+    return CACHE["exchange"]
+    
+@app.on_event("startup")
+def start_scheduler():
+    update_stocks_job()
+    update_rates_job()
+    update_exchange_job()
+    update_economy_job()
+    
+    # 30초 주기: 변동성 큰 데이터
+    scheduler.add_job(update_stocks_job, "interval", seconds=30)
+
+    # 5분 주기: 변동성 적은 데이터
+    scheduler.add_job(update_rates_job, "interval", minutes=5)
+    scheduler.add_job(update_exchange_job, "interval", minutes=5)
+
+    # 하루 2회 실행: 발표일 기반 지표
+    scheduler.add_job(update_economy_job, "cron", hour=0, minute=0)
+    scheduler.add_job(update_economy_job, "cron", hour=12, minute=0)
+
+    scheduler.start()
+
+@app.get("/api/timer")
+def api_timer():
+    return {
+        "last_update": LAST_UPDATE["stocks"].isoformat() if LAST_UPDATE["stocks"] else None,
+        "next_update": NEXT_UPDATE["stocks"].isoformat() if NEXT_UPDATE["stocks"] else None
+    }
 
 # Serve Static Files (Frontend)
 try:

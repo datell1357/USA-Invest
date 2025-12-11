@@ -410,6 +410,16 @@
             <button class="nav-btn" onclick="switchCategory('rates')">금리</button>
             <button class="nav-btn" onclick="switchCategory('exchange')">환율</button>
         </nav>
+		<div id="refresh-timer" style="
+			position: absolute;
+			right: 20px;
+			top: 20px;
+			font-size: 0.9rem;
+			color: #94a3b8;
+		">
+    다음 갱신까지: --초
+</div>
+
     </header>
 
     <main id="main-content">
@@ -418,6 +428,13 @@
 
     <script>
 
+		let nextUpdateTime = null;
+
+		async function fetchTimer() {
+			const res = await fetch(`${API_BASE_URL.replace('/api/finance', '')}/api/timer`);
+			const data = await res.json();
+			nextUpdateTime = new Date(data.next_update);
+		}
 
         const CATEGORIES = {
             stocks: {
@@ -528,16 +545,19 @@
             exchange: {}
         };
 
-        const API_BASE_URL = 'https://usa-invest.onrender.com/api/finance';
+        // const API_BASE_URL = 'https://usa-invest.onrender.com/api/finance';
+		const API_BASE_URL = "http://127.0.0.1:8000/api/finance";
 
 
         let currentCategory = 'stocks';
         let chartInstances = {};
 
-        window.onload = () => {
+        window.onload = async () => {
             // Update Russell URL
             const russellItem = CATEGORIES.stocks.groups[0].items.find(i => i.id === 'russell');
-            if (russellItem) russellItem.url = 'https://www.google.com/finance/quote/RUT:INDEXRUSSELL?hl=ko';
+            if (russellItem) {
+                russellItem.url = 'https://www.google.com/finance/quote/RUT:INDEXRUSSELL?hl=ko';
+            }
 
             updateDate();
 
@@ -545,8 +565,15 @@
             renderLayout(currentCategory);
 
             // Fetch Data
-            fetchAllData();
+            await fetchAllData();
+
+            // Timer Sync with Backend
+            await fetchTimer();
+
+            // Start Countdown
+            startCountdown();
         };
+
 
         function updateDate() {
             const now = new Date();
@@ -564,6 +591,27 @@
             }
             renderLayout(cat);
         }
+		
+		function startCountdown() {
+			setInterval(() => {
+				if (!nextUpdateTime) return;
+				const now = new Date();
+
+				const diffMs = nextUpdateTime - now;
+				const diffSec = Math.floor(diffMs / 1000);
+
+				const timerEl = document.getElementById("refresh-timer");
+
+				if (diffSec >= 0) {
+					timerEl.textContent = `다음 갱신까지: ${diffSec}초`;
+				}
+
+				if (diffSec <= 0) {
+					location.reload();
+				}
+			}, 1000);
+		}
+
 
         async function fetchAllData() {
             try {
@@ -922,48 +970,50 @@
             }
         }
 
-        function initChart(ctx, id, endValue) {
-            // 1 Year Data (Monthly)
-            const values = generateMockHistory(12, endValue).values;
-            const isUp = values[values.length - 1] >= values[0];
-            const color = isUp ? '#f87171' : '#60a5fa';
+        function initChart(ctx, id, history) {
 
-            const labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+			const labels = history.map(h => h.date);
+			const values = history.map(h => h.value);
 
-            chartInstances[id] = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        data: values,
-                        borderColor: color,
-                        borderWidth: 2,
-                        pointRadius: 3,
-                        fill: true,
-                        backgroundColor: (ctx) => {
-                            const grad = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.height);
-                            grad.addColorStop(0, isUp ? 'rgba(248, 113, 113, 0.25)' : 'rgba(96, 165, 250, 0.25)');
-                            grad.addColorStop(1, 'rgba(0,0,0,0)');
-                            return grad;
-                        },
-                        tension: 0.3
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: {
-                            grid: { display: false },
-                            ticks: { color: '#94a3b8', font: { size: 11 } }
-                        },
-                        y: { display: true, position: 'left', grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b', font: { size: 10 } }, border: { display: false } }
-                    },
-                    interaction: { intersect: false, mode: 'index' }
-                }
-            });
-        }
+			const isUp = values[values.length - 1] >= values[0];
+			const color = isUp ? '#f87171' : '#60a5fa';
+
+			chartInstances[id] = new Chart(ctx, {
+				type: 'line',
+				data: {
+					labels: labels,
+					datasets: [{
+						data: values,
+						borderColor: color,
+						borderWidth: 2,
+						fill: true,
+						pointRadius: 0,
+						backgroundColor: (ctx) => {
+							const grad = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.height);
+							grad.addColorStop(0, isUp ? 'rgba(248, 113, 113, 0.25)' : 'rgba(96, 165, 250, 0.25)');
+							grad.addColorStop(1, 'rgba(0,0,0,0)');
+							return grad;
+						},
+						tension: 0.3
+					}]
+				},
+				options: {
+					responsive: true,
+					maintainAspectRatio: false,
+					plugins: { legend: { display: false } },
+					scales: {
+						x: {
+							ticks: { color: '#94a3b8', font: { size: 10 } },
+							grid: { display: false }
+						},
+						y: {
+							ticks: { color: '#64748b', font: { size: 10 } },
+							grid: { color: 'rgba(255,255,255,0.05)' }
+						}
+					}
+				}
+			});
+		}
 
         function generateMockHistory(count, endValue) {
             const values = [];

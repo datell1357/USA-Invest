@@ -3,6 +3,8 @@ import random
 import requests
 from datetime import datetime
 
+FRED_API_KEY = "98f9a9461a5eed275514aad3fb514d53"
+
 def get_ticker_data(ticker_symbol):
     """
     Fetches data for a single ticker.
@@ -74,17 +76,45 @@ def get_stocks_data():
 
     result = snapshot.copy()
 
-    # Attempt Live Fetch (Optional - uncomment to enable live fetching mixed with snapshot)
-    # Attempt Live Fetch
+    # 현재값 포함
     for key, symbol in tickers.items():
-        data = get_ticker_data(symbol)
-        if data:
-            result[key] = data
-            
-    # Auto-Rollover for High Yield
-    snapshot['high_yield'] = check_date_rollover(snapshot['high_yield'])
-    
+        current = get_ticker_data(symbol) or snapshot[key]
+        history = fetch_stock_history(symbol)
+        result[key] = {
+            "current": current,
+            "history": history
+        }
+
+    # high_yield는 API 없음 → snapshot 값 기반 history 생성
+    hy = snapshot["high_yield"]
+    result["high_yield"] = {
+        "current": hy,
+        "history": generate_monthly_history(hy["value"])
+    }
+
+    # fear_greed 등 snapshot-only 지표 처리
+    fg = snapshot["fear_greed"]
+    result["fear_greed"] = {
+        "current": fg,
+        "history": generate_monthly_history(fg["value"])
+    }
+
     return result
+    
+def fetch_stock_history(symbol):
+    try:
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period="1y")
+        history = []
+        for t, row in hist.iterrows():
+            history.append({
+                "date": t.strftime("%Y-%m-%d"),
+                "value": float(row["Close"])
+            })
+        return history
+    except:
+        return []
+
 
 def get_economy_data():
     # Latest Official Data (As of Dec 6, 2025)
@@ -224,3 +254,31 @@ def get_economy_data():
         data[k] = check_date_rollover(v)
         
     return data
+
+def fetch_fred_history(series_id):
+    url = (
+        f"https://api.stlouisfed.org/fred/series/observations"
+        f"?series_id={series_id}&api_key={FRED_API_KEY}&file_type=json"
+        f"&observation_start={(datetime.now().date() - timedelta(days=365)).isoformat()}"
+    )
+    try:
+        r = requests.get(url).json()
+        obs = r.get("observations", [])
+        history = []
+        for o in obs:
+            if o["value"] == ".":
+                continue
+            history.append({
+                "date": o["date"],
+                "value": float(o["value"])
+            })
+        return history
+    except:
+        return []
+
+def get_stocks_current_only():
+    result = {}
+    tickers = {...}
+    for key, symbol in tickers.items():
+        result[key] = get_ticker_data(symbol)
+    return result
