@@ -118,18 +118,12 @@ def start_scheduler():
 
 @app.get("/api/timer")
 def api_timer():
-    now = datetime.now()
-
-    next_update = NEXT_UPDATE["stocks"]
-
-    # ⛔ 만약 scheduler 타이밍 어긋나서 과거라면 → 즉시 보정
-    if not next_update or next_update <= now:
-        next_update = now + timedelta(seconds=30)
-        NEXT_UPDATE["stocks"] = next_update
+    if not LAST_UPDATE["stocks"] or not NEXT_UPDATE["stocks"]:
+        return {"last_update": None, "next_update": None}
 
     return {
-        "server_time": int(now.timestamp() * 1000),
-        "next_update": int(next_update.timestamp() * 1000)
+        "last_update": int(LAST_UPDATE["stocks"].timestamp() * 1000),
+        "next_update": int(NEXT_UPDATE["stocks"].timestamp() * 1000)
     }
 
 
