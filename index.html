@@ -428,12 +428,12 @@
 
     <script>
 
-		let nextUpdateTime = null;
+		let remainingSec = null;
 
 		async function fetchTimer() {
 			const res = await fetch(`${API_BASE_URL.replace('/api/finance', '')}/api/timer`);
 			const data = await res.json();
-			nextUpdateTime = new Date(data.next_update); // ms → Date OK
+			remainingSec = data.remaining_seconds;
 		}
 
         const CATEGORIES = {
@@ -594,22 +594,20 @@
 		
 		function startCountdown() {
 			setInterval(async () => {
-				if (!nextUpdateTime) return;
-
-				const now = new Date();
-				const diffSec = Math.floor((nextUpdateTime - now) / 1000);
-				const displaySec = Math.max(diffSec, 0);
+				if (remainingSec === null) return;
 
 				const timerEl = document.getElementById("refresh-timer");
-				timerEl.textContent = `다음 갱신까지: ${displaySec}초`;
+				timerEl.textContent = `다음 갱신까지: ${remainingSec}초`;
 
-				if (diffSec <= 0) {
+				if (remainingSec <= 0) {
 					await fetchAllData();
 
-					// 백엔드 scheduler가 NEXT_UPDATE를 갱신할 시간 확보
+					// 서버가 NEXT_UPDATE 갱신할 시간
 					setTimeout(async () => {
 						await fetchTimer();
-					}, 1000); // ✅ 1초 지연
+					}, 1200);
+				} else {
+					remainingSec--;
 				}
 			}, 1000);
 		}

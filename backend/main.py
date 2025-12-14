@@ -118,10 +118,13 @@ def start_scheduler():
 
 @app.get("/api/timer")
 def api_timer():
+    now = datetime.now()
+    remaining = int((NEXT_UPDATE["stocks"] - now).total_seconds())
+
     return {
-        "last_update": int(LAST_UPDATE["stocks"].timestamp() * 1000),
-        "next_update": int(NEXT_UPDATE["stocks"].timestamp() * 1000)
+        "remaining_seconds": max(remaining, 0)
     }
+
 
 # Serve Static Files (Frontend)
 try:
