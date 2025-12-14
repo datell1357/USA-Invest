@@ -1,0 +1,13 @@
+ 
+# Python files to ignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Local development files to ignore
+run_server.bat

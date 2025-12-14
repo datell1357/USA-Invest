@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Finance Dashboard</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #141b2d;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-gold: #fbbf24;
+            --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: radial-gradient(circle at top right, #1e293b, #0f172a 60%, #020617);
+            color: var(--text-primary);
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            font-size: 16px;
+        }
+
+        /* Header */
+        header {
+            width: 100%;
+            padding: 1.5rem 0 1rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 1.2rem;
+            z-index: 100;
+            flex-shrink: 0;
+        }
+
+        .header-title {
+            font-size: 1.1rem;
+            color: #60a5fa;
+            font-weight: 600;
+            opacity: 0.9;
+        }
+
+        .nav-container {
+            display: flex;
+            gap: 0.8rem;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.4rem;
+            border-radius: 9999px;
+            border: 1px solid var(--border-color);
+        }
+
+        .nav-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 0.5rem 1.4rem;
+            border-radius: 9999px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        .nav-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .nav-btn.active {
+            background: var(--text-primary);
+            color: var(--bg-dark);
+            font-weight: 700;
+        }
+
+        /* Main */
+        main {
+            flex: 1;
+            width: 100%;
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 0 2rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            min-height: 0;
+        }
+
+        /* Titles */
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            margin-top: 1rem;
+            margin-bottom: 0.6rem;
+        }
+
+        .section-bar {
+            width: 4px;
+            height: 1.2rem;
+            background-color: var(--accent-gold);
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        /* Grids */
+        .dashboard-grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .split-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .grid-7-3 {
+            grid-template-columns: 2.3fr 1fr;
+        }
+
+        /* 70:30 Ratio */
+        .four-grid {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        /* Card */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1.2rem;
+            padding: 1rem 1.2rem;
+            box-shadow: var(--shadow-card);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-header-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Indices 3-Col Row (Shared) */
+        .indices-row-3col {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 0.3rem;
+            margin-bottom: 0.3rem;
+            cursor: pointer;
+        }
+
+        .indices-row-3col:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+            margin-bottom: 0;
+        }
+
+        .idx-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #94a3b8;
+            text-align: left;
+        }
+
+        .idx-price-center {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
+            text-align: center;
+        }
+
+        .idx-right-group {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+            align-items: flex-end;
+        }
+
+        .idx-change-val {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .idx-change-pct {
+            font-size: 0.85rem;
+            font-weight: 500;
+            opacity: 0.9;
+        }
+
+        /* 2-Column Indices Grid (Internal) */
+        .indices-2col-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            /* Space between columns */
+        }
+
+        .indices-col {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Sentiment */
+        .sentiment-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .sentiment-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .sentiment-label {
+            font-size: 1.1rem;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+
+        .sentiment-val {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
+            text-align: right;
+        }
+
+        .sentiment-change {
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-align: right;
+        }
+
+        /* Val with Dates / Simple */
+        .sv-top-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .sv-label {
+            font-size: 1rem;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+
+        .sv-badge {
+            font-size: 0.85rem;
+            font-weight: 600;
+            padding: 0.2rem 0.6rem;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+        }
+
+        .sv-value {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: #fff;
+            line-height: 1.1;
+        }
+
+        .sv-footer {
+            margin-top: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
+        /* Large Center */
+        .large-center-box {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+
+        /* Standard List */
+        .std-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.6rem;
+            cursor: pointer;
+        }
+
+        .std-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .std-label {
+            font-size: 1rem;
+            color: #94a3b8;
+        }
+
+        .std-val {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #fff;
+            text-align: right;
+        }
+
+        .std-change {
+            font-size: 0.85rem;
+            text-align: right;
+        }
+
+        /* Charts */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.5rem;
+            height: 100%;
+        }
+
+        .chart-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1.2rem;
+            padding: 1.2rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 280px;
+        }
+
+        .chart-title {
+            font-size: 1rem;
+            color: #fff;
+            margin-bottom: 0.8rem;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        /* Utilities */
+        .c-up {
+            color: #f87171;
+        }
+
+        .c-down {
+            color: #60a5fa;
+        }
+
+        .bg-up {
+            background: rgba(248, 113, 113, 0.15);
+            color: #f87171;
+        }
+
+        .bg-down {
+            background: rgba(96, 165, 250, 0.15);
+            color: #60a5fa;
+        }
+
+        @media (max-width: 1024px) {
+
+            .split-grid,
+            .four-grid,
+            .grid-7-3 {
+                grid-template-columns: 1fr;
+            }
+
+            .indices-2col-container {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+    <header>
+        <div class="header-title" id="current-date">Thinking...</div>
+        <nav class="nav-container">
+            <button class="nav-btn active" onclick="switchCategory('stocks')">미국 증시</button>
+            <button class="nav-btn" onclick="switchCategory('economy')">실물경제</button>
+            <button class="nav-btn" onclick="switchCategory('rates')">금리</button>
+            <button class="nav-btn" onclick="switchCategory('exchange')">환율</button>
+        </nav>
+		<div id="refresh-timer" style="
+			position: absolute;
+			right: 20px;
+			top: 20px;
+			font-size: 0.9rem;
+			color: #94a3b8;
+		">
+    다음 갱신까지: --초
+</div>
+
+    </header>
+
+    <main id="main-content">
+        <!-- Content -->
+    </main>
+
+    <script>
+
+		let nextUpdateTime = null;
+
+		async function fetchTimer() {
+			const res = await fetch(`${API_BASE_URL.replace('/api/finance', '')}/api/timer`);
+			const data = await res.json();
+			nextUpdateTime = new Date(data.next_update);
+		}
+
+        const CATEGORIES = {
+            stocks: {
+                layoutClass: 'grid-7-3', // Changed to 7:3
+                groups: [
+                    {
+                        id: 'us_market',
+                        label: '미국 주요 지수', // Renamed
+                        type: 'indices_2x3_grid', // New type for 2 columns x 3 rows
+                        items: [
+                            // Left Col
+                            { id: 'sp_futures', label: 'S&P 500', url: 'https://kr.investing.com/indices/us-spx-500-futures' },
+                            { id: 'dow_futures', label: 'DOW', url: 'https://kr.investing.com/indices/us-30-futures' },
+                            { id: 'nasdaq_futures', label: 'NASDAQ', url: 'https://kr.investing.com/indices/nq-100-futures' },
+                            // Right Col
+                            { id: 'wti', label: 'WTI 유가/원자재', url: 'https://kr.investing.com/commodities/crude-oil' },
+                            { id: 'russell', label: '러셀 2000', url: 'https://kr.investing.com/indices/us-small-cap-2000' },
+                            { id: 'high_yield', label: '하이일드 스프레드', url: 'https://fred.stlouisfed.org/series/BAMLH0A0HYM2' }
+                        ]
+                    },
+                    {
+                        id: 'sentiment',
+                        label: '투자 심리',
+                        type: 'sentiment_list',
+                        items: [
+                            { id: 'vix', label: 'VIX', url: 'https://kr.investing.com/indices/volatility-s-p-500' },
+                            { id: 'fear_greed', label: '공포탐욕 지수', url: 'https://edition.cnn.com/markets/fear-and-greed' }
+                        ]
+                    }
+                ],
+                charts: [
+                    { id: 'sp_chart', label: 'S&P 500' },
+                    { id: 'dow_chart', label: 'DOW' },
+                    { id: 'nasdaq_chart', label: 'NASDAQ' }
+                ]
+            },
+            economy: {
+                layoutClass: 'four-grid',
+                groups: [
+                    { id: 'cci_card', label: '소비자신뢰지수', type: 'val_with_dates', items: [{ id: 'cci', url: 'https://kr.investing.com/economic-calendar/cb-consumer-confidence-48' }] },
+                    { id: 'pmi_card', label: '제조업 PMI', type: 'val_with_dates', items: [{ id: 'pmi', url: 'https://kr.investing.com/economic-calendar/ism-manufacturing-pmi-173' }] },
+                    { id: 'unem_card', label: '실업률', type: 'val_with_dates', items: [{ id: 'unemployment', url: 'https://kr.investing.com/economic-calendar/unemployment-rate-300' }] },
+                    { id: 'nfp_card', label: '비농업고용', type: 'val_with_dates', items: [{ id: 'non_farm', url: 'https://kr.investing.com/economic-calendar/nonfarm-payrolls-227' }] }
+                ],
+                charts: [
+                    { id: 'cci_chart', label: '소비자신뢰지수' },
+                    { id: 'unem_chart', label: '실업률' }
+                ]
+            },
+            rates: {
+                layoutClass: 'four-grid',
+                groups: [
+                    {
+                        id: 'us_rates', label: '미국 (USA)', type: 'std_list',
+                        items: [
+                            { id: 'us_10y', label: '10년물', url: 'https://kr.investing.com/rates-bonds/u.s.-10-year-bond-yield' },
+                            { id: 'us_2y', label: '2년물', url: 'https://kr.investing.com/rates-bonds/u.s.-2-year-bond-yield' },
+                            { id: 'us_10_2_spread', label: '10-2년차', url: 'https://fred.stlouisfed.org/series/T10Y2Y' },
+                            { id: 'fed_rate', label: '기준금리', url: 'https://kr.investing.com/economic-calendar/interest-rate-decision-168' }
+                        ]
+                    },
+                    {
+                        id: 'jp_rates', label: '일본 (JPN)', type: 'std_list',
+                        items: [
+                            { id: 'jp_2y', label: '2년물', url: 'https://kr.investing.com/rates-bonds/japan-2-year-bond-yield' },
+                            { id: 'jp_policy', label: '정책금리', url: 'https://kr.investing.com/economic-calendar/boj-interest-rate-decision-164' }
+                        ]
+                    },
+                    {
+                        id: 'kr_rates', label: '한국 (KOR)', type: 'std_list',
+                        items: [
+                            { id: 'kr_10y', label: '10년물', url: 'https://kr.investing.com/rates-bonds/south-korea-10-year-bond-yield' },
+                            { id: 'kr_2y', label: '2년물', url: 'https://kr.investing.com/rates-bonds/south-korea-2-year-bond-yield' },
+                            { id: 'kr_base', label: '기준금리', url: 'https://kr.investing.com/central-banks/bank-of-korea' }
+                        ]
+                    },
+                    {
+                        id: 'sofr_card', label: '', type: 'large_center',
+                        items: [{ id: 'sofr', label: 'SOFR', url: 'https://www.newyorkfed.org/markets/reference-rates/sofr' }]
+                    }
+                ],
+                charts: [
+                    { id: 'us10_chart', label: '미국 10년물' },
+                    { id: 'us2_chart', label: '미국 2년물' },
+                    { id: 'spread_chart', label: '10-2년차 Spread' }
+                ]
+            },
+            exchange: {
+                layoutClass: 'four-grid',
+                groups: [
+                    { id: 'dxy_card', label: '달러인덱스', type: 'val_simple', items: [{ id: 'dxy', url: 'https://kr.investing.com/currencies/us-dollar-index' }] },
+                    { id: 'krw_card', label: '원/달러 환율', type: 'val_simple', items: [{ id: 'usd_krw', url: 'https://kr.investing.com/currencies/usd-krw' }] },
+                    { id: 'res_card', label: '외환보유고', type: 'val_with_dates', items: [{ id: 'foreign_reserves', url: 'https://www.bok.or.kr/portal/main/main.do' }] },
+                    { id: 'bond_card', label: '외국인 채권매수', type: 'val_with_dates', items: [{ id: 'foreign_bond', url: 'https://www.bondweb.co.kr/' }] },
+                ],
+                charts: [
+                    { id: 'dxy_chart', label: '달러인덱스' },
+                    { id: 'krw_chart', label: '원/달러 환율' }
+                ]
+            }
+        };
+
+        // Initial Empty State - Populated by Backend API
+        let MOCK_DATA = {
+            stocks: {},
+            economy: {},
+            rates: {},
+            exchange: {}
+        };
+
+        // const API_BASE_URL = 'https://usa-invest.onrender.com/api/finance';
+		const API_BASE_URL = "http://127.0.0.1:8000/api/finance";
+
+
+        let currentCategory = 'stocks';
+        let chartInstances = {};
+
+        window.onload = async () => {
+            // Update Russell URL
+            const russellItem = CATEGORIES.stocks.groups[0].items.find(i => i.id === 'russell');
+            if (russellItem) {
+                russellItem.url = 'https://www.google.com/finance/quote/RUT:INDEXRUSSELL?hl=ko';
+            }
+
+            updateDate();
+
+            // Initial render (empty)
+            renderLayout(currentCategory);
+
+            // Fetch Data
+            await fetchAllData();
+
+            // Timer Sync with Backend
+            await fetchTimer();
+
+            // Start Countdown
+            startCountdown();
+        };
+
+
+        function updateDate() {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+            document.getElementById('current-date').innerText = dateStr;
+        }
+
+        function switchCategory(cat) {
+            if (currentCategory === cat) return;
+            currentCategory = cat;
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            const btns = document.querySelectorAll('.nav-btn');
+            for (let b of btns) {
+                if (b.getAttribute('onclick').includes(cat)) b.classList.add('active');
+            }
+            renderLayout(cat);
+        }
+		
+		function startCountdown() {
+			setInterval(() => {
+				if (!nextUpdateTime) return;
+				const now = new Date();
+
+				const diffMs = nextUpdateTime - now;
+				const diffSec = Math.floor(diffMs / 1000);
+
+				const timerEl = document.getElementById("refresh-timer");
+
+				if (diffSec >= 0) {
+					timerEl.textContent = `다음 갱신까지: ${diffSec}초`;
+				}
+
+				if (diffSec <= 0) {
+					location.reload();
+				}
+			}, 1000);
+		}
+
+
+        async function fetchAllData() {
+            try {
+                // Parallel Fetch
+                const [stocks, economy, rates, exchange] = await Promise.all([
+                    fetch(`${API_BASE_URL}/stocks`).then(r => r.json()),
+                    fetch(`${API_BASE_URL}/economy`).then(r => r.json()),
+                    fetch(`${API_BASE_URL}/rates`).then(r => r.json()),
+                    fetch(`${API_BASE_URL}/exchange`).then(r => r.json())
+                ]);
+
+                if (stocks) MOCK_DATA.stocks = stocks;
+                if (economy) MOCK_DATA.economy = economy;
+                if (rates) MOCK_DATA.rates = rates;
+                if (exchange) MOCK_DATA.exchange = exchange;
+
+                // Re-render current category with data
+                renderLayout(currentCategory);
+                console.log('Backend Data Loaded:', MOCK_DATA);
+
+            } catch (e) {
+                console.error("Backend connection failed:", e);
+                // Optional: alert('Data sync failed. Check server.');
+            }
+        }
+
+        function renderLayout(category) {
+            const main = document.getElementById('main-content');
+            main.innerHTML = '';
+            Object.values(chartInstances).forEach(c => c.destroy());
+            chartInstances = {};
+
+            const config = CATEGORIES[category];
+
+            // Header
+            const cardHeader = document.createElement('div');
+            cardHeader.className = 'section-header';
+            cardHeader.innerHTML = `<div class="section-bar"></div><div class="section-title">주요 지표</div>`;
+            main.appendChild(cardHeader);
+
+            // Cards
+            const cardsSection = document.createElement('div');
+            const grid = document.createElement('div');
+            grid.className = `dashboard-grid ${config.layoutClass || ''}`;
+            config.groups.forEach(group => grid.appendChild(createCard(group)));
+            cardsSection.appendChild(grid);
+            main.appendChild(cardsSection);
+
+            // Charts
+            if (config.charts) {
+                const chartHeader = document.createElement('div');
+                chartHeader.className = 'section-header';
+                chartHeader.innerHTML = `<div class="section-bar"></div><div class="section-title">상세 그래프</div>`;
+                main.appendChild(chartHeader);
+
+                const cGrid = document.createElement('div');
+                cGrid.className = 'charts-grid';
+                config.charts.forEach(c => cGrid.appendChild(createChartCard(c)));
+                main.appendChild(cGrid);
+            }
+
+            // Populate Data
+            updateUI(category, MOCK_DATA[category]);
+        }
+
+        function createIndicesRow(item) {
+            const row = document.createElement('div');
+            row.className = 'indices-row-3col';
+            // Flex layout: Label(Left) - Value(Center) - Change&Pct(Right)
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.justifyContent = 'space-between';
+
+            if (item.url) row.onclick = () => window.open(item.url, '_blank');
+
+            row.innerHTML = `
+                <div class="idx-name" style="flex:1; text-align:left;">${item.label}</div>
+                <div class="idx-val center-align" id="val-${item.id}" style="flex:1; text-align:center; font-size:1.1rem; font-weight:700; color:#fff;">...</div>
+                <div class="idx-right-group" style="flex:1; text-align:right;">
+                     <!-- Combined Change and Percent -->
+                     <div class="idx-change loading-pulse" id="ch-${item.id}">--</div>
+                     <div id="date-row-${item.id}" style="display:none; font-size:0.7rem; color:#64748b; margin-top:2px;">
+                        다음: <span id="next-${item.id}">--</span>
+                    </div>
+                </div>
+            `;
+            return row;
+        }
+
+        function createCard(group) {
+            const div = document.createElement('div');
+            div.className = 'card';
+
+            if (group.type === 'indices_2x3_grid') {
+                div.innerHTML = `<div class="card-header-title">${group.label}</div>`;
+                const container = document.createElement('div');
+                container.className = 'indices-2col-container';
+
+                // Split into 2 arrays: first 3, and rest
+                const leftItems = group.items.slice(0, 3);
+                const rightItems = group.items.slice(3, 6);
+
+                const leftCol = document.createElement('div');
+                leftCol.className = 'indices-col';
+                leftItems.forEach(item => {
+                    leftCol.appendChild(createIndicesRow(item));
+                });
+
+                const rightCol = document.createElement('div');
+                rightCol.className = 'indices-col';
+                rightItems.forEach(item => {
+                    rightCol.appendChild(createIndicesRow(item));
+                });
+
+                container.appendChild(leftCol);
+                container.appendChild(rightCol);
+                div.appendChild(container);
+
+            } else if (group.type === 'indices_3col') {
+                div.innerHTML = `<div class="card-header-title">${group.label}</div>`;
+                const list = document.createElement('div');
+                list.className = 'indices-list';
+                group.items.forEach(item => {
+                    list.appendChild(createIndicesRow(item));
+                });
+                div.appendChild(list);
+
+            } else if (group.type === 'std_list') {
+                div.innerHTML = `<div class="card-header-title">${group.label}</div>`;
+                const list = document.createElement('div');
+                list.className = 'std-list';
+                group.items.forEach(item => {
+                    const container = document.createElement('div');
+                    container.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+                    container.style.paddingBottom = '0.6rem';
+                    container.style.marginBottom = '0.6rem';
+                    if (item.url) { container.style.cursor = 'pointer'; container.onclick = () => window.open(item.url, '_blank'); }
+
+                    container.innerHTML = `
+                        <div class="std-row" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span class="std-label" style="color:#94a3b8;">${item.label}</span>
+                            <div style="text-align:right;">
+                                <div class="std-val loading-pulse" id="val-${item.id}" style="font-size:1.1rem; font-weight:700; color:#fff;">...</div>
+                                <div class="std-change loading-pulse" id="ch-${item.id}" style="font-size:0.85rem;">--</div>
+                            </div>
+                        </div>
+                        <div id="date-row-${item.id}" style="display:none; text-align:right; font-size:0.75rem; color:#64748b; margin-top:2px;">
+                            <span id="date-${item.id}"></span> | 다음: <span id="next-${item.id}"></span>
+                        </div>
+                    `;
+                    list.appendChild(container);
+                });
+                div.appendChild(list);
+
+            } else if (group.type === 'sentiment_list') {
+                div.innerHTML = `<div class="card-header-title">${group.label}</div>`;
+                const list = document.createElement('div');
+                list.className = 'sentiment-list';
+                group.items.forEach(item => {
+                    const row = document.createElement('div');
+                    row.className = 'sentiment-row';
+                    if (item.url) row.onclick = () => window.open(item.url, '_blank');
+                    row.innerHTML = `
+                        <div class="sentiment-label">${item.label}</div>
+                        <div class="sentiment-val-group">
+                             <div class="sentiment-val loading-pulse" id="val-${item.id}">...</div>
+                             <div class="sentiment-change loading-pulse" id="ch-${item.id}">--</div>
+                        </div>
+                     `;
+                    list.appendChild(row);
+                });
+                div.appendChild(list);
+
+            } else if (group.type === 'val_with_dates') {
+                const item = group.items[0];
+                if (item.url) { div.style.cursor = 'pointer'; div.onclick = () => window.open(item.url, '_blank'); }
+                div.innerHTML = `
+                    <div class="sv-top-row">
+                        <span class="sv-label">${group.label}</span>
+                        <span class="sv-badge loading-pulse" id="ch-${item.id}">--</span>
+                    </div>
+                    <div class="sv-value loading-pulse" id="val-${item.id}">...</div>
+                    <div class="sv-footer">
+                        <span>발표: <span id="date-${item.id}">--</span></span>
+                        <span>다음: <span id="next-${item.id}">--</span></span>
+                    </div>
+                 `;
+
+            } else if (group.type === 'val_simple') {
+                const item = group.items[0];
+                if (item.url) { div.style.cursor = 'pointer'; div.onclick = () => window.open(item.url, '_blank'); }
+                div.innerHTML = `
+                    <div class="sv-top-row">
+                        <span class="sv-label">${group.label}</span>
+                        <span class="sv-badge loading-pulse" id="ch-${item.id}">--</span>
+                    </div>
+                    <div class="sv-value loading-pulse" id="val-${item.id}">...</div>
+                 `;
+            } else if (group.type === 'large_center') {
+                const item = group.items[0];
+                if (item.url) { div.style.cursor = 'pointer'; div.onclick = () => window.open(item.url, '_blank'); }
+                div.innerHTML = `
+                    <div class="large-center-box">
+                        <span style="font-size:1.2rem; color:#94a3b8; margin-bottom:0.8rem">${item.label}</span>
+                        <div class="large-val loading-pulse" id="val-${item.id}" style="font-size:3rem; font-weight:800; color:#fff; line-height:1;">...</div>
+                        <div class="large-change loading-pulse" id="ch-${item.id}" style="font-size:1.1rem; margin-top:0.4rem;">--</div>
+                    </div>
+                `;
+            }
+            return div;
+        }
+
+        function createChartCard(c) {
+            const div = document.createElement('div');
+            div.className = 'chart-card';
+            div.innerHTML = `
+                <div class="chart-title">${c.label} Trend</div>
+                <div style="flex:1; position:relative; width:100%; height:100%">
+                    <canvas id="${c.id}"></canvas>
+                </div>
+            `;
+            return div;
+        }
+
+        async function fetchData(category) {
+            updateUI(category, MOCK_DATA[category]);
+        }
+
+        function updateUI(category, data) {
+            const config = CATEGORIES[category];
+
+            // 1. Update Cards
+            config.groups.forEach(g => {
+                g.items.forEach(item => {
+                    const d = data[item.id];
+                    if (!d) return;
+
+                    const valEl = document.getElementById(`val-${item.id}`);
+                    const chEl = document.getElementById(`ch-${item.id}`);
+                    const dateEl = document.getElementById(`date-${item.id}`);
+                    const nextEl = document.getElementById(`next-${item.id}`);
+                    const dateRowEl = document.getElementById(`date-row-${item.id}`);
+
+                    if (valEl) {
+                        let txt = d.value;
+                        if ((item.id === 'fear_greed' || item.id === 'sofr') && !String(txt).includes('%')) txt += '%';
+                        valEl.innerText = txt;
+                        valEl.classList.remove('loading-pulse');
+                    }
+
+                    if (chEl) {
+                        // High Yield special: Date row visibility check
+                        if ((item.id === 'high_yield' || g.type === 'indices_3col' || g.type === 'indices_2x3_grid') && d.next) {
+                            if (dateRowEl) {
+                                dateRowEl.style.display = 'block';
+                                const pDate = document.getElementById(`date-${item.id}`);
+                                const pNext = document.getElementById(`next-${item.id}`);
+
+                                if (pDate) pDate.innerText = d.date || '';
+                                if (pNext) pNext.innerText = d.next || d.next_date || '';
+                            }
+                        }
+
+                        // Hide change for Policy Rates
+                        if (item.id === 'fear_greed' || item.id === 'fed_rate' || item.id === 'jp_policy' || item.id === 'kr_base') {
+                            chEl.style.display = 'none';
+                        } else {
+                            let raw = d.change || "0";
+                            let rawPct = d.percent;
+                            if (canFormat(raw)) raw = formatNumber(raw);
+
+                            const dir = getDirection(d.change);
+
+                            // Indices Grid: Single Line Format
+                            if (g.type === 'indices_3col' || g.type === 'indices_2x3_grid') {
+                                // Format: -1.75 (-0.03%)
+                                let disp = raw;
+                                if (rawPct) disp += ` (${formatNumber(rawPct)}%)`;
+
+                                chEl.innerText = disp;
+                                chEl.className = 'indices-change-val';
+                                if (dir === 'up') chEl.classList.add('c-up');
+                                else if (dir === 'down') chEl.classList.add('c-down');
+
+                            } else {
+                                // Standard / SV
+                                let disp = raw;
+                                if (rawPct) disp += ` (${formatNumber(rawPct)}%)`;
+                                chEl.innerText = disp;
+
+                                chEl.className = '';
+                                if (g.type === 'val_with_dates' || g.type === 'val_simple') {
+                                    chEl.className = 'sv-badge';
+                                    if (dir === 'up') chEl.classList.add('bg-up');
+                                    else if (dir === 'down') chEl.classList.add('bg-down');
+                                } else {
+                                    chEl.style.fontWeight = '500';
+                                    if (dir === 'up') chEl.classList.add('c-up');
+                                    else if (dir === 'down') chEl.classList.add('c-down');
+                                }
+                            }
+                            chEl.classList.remove('loading-pulse');
+                        }
+                    }
+
+
+                    // General Date Handling
+                    if (d.date || d.next || d.next_date) {
+                        if (dateRowEl) dateRowEl.style.display = 'block';
+                        if (dateEl) dateEl.innerText = d.date || '';
+                        if (nextEl) nextEl.innerText = d.next || d.next_date || '';
+                    }
+                });
+            });
+
+            // 2. Update Charts
+            if (config.charts) {
+                config.charts.forEach(c => {
+                    const ctx = document.getElementById(c.id);
+
+                    // Determine current value for the chart
+                    let dataId = null;
+                    if (c.id === 'sp_chart') dataId = 'sp_futures';
+                    else if (c.id === 'dow_chart') dataId = 'dow_futures';
+                    else if (c.id === 'nasdaq_chart') dataId = 'nasdaq_futures';
+                    else if (c.id === 'cci_chart') dataId = 'cci';
+                    else if (c.id === 'unem_chart') dataId = 'unemployment';
+                    else if (c.id === 'us10_chart') dataId = 'us_10y';
+                    else if (c.id === 'us2_chart') dataId = 'us_2y';
+                    else if (c.id === 'spread_chart') dataId = 'us_10_2_spread';
+                    else if (c.id === 'dxy_chart') dataId = 'dxy';
+                    else if (c.id === 'krw_chart') dataId = 'usd_krw';
+
+                    let currentVal = 100;
+                    // Attempt to find data in current category
+                    if (dataId && MOCK_DATA[category] && MOCK_DATA[category][dataId]) {
+                        let raw = MOCK_DATA[category][dataId].value;
+                        let cleanVal = raw.replace(/,/g, '').replace(/%/g, '').replace(/K/g, '').replace(/억\$/g, '').replace(/조원/g, '');
+                        let parsed = parseFloat(cleanVal);
+                        if (!isNaN(parsed)) currentVal = parsed;
+                    } else if (dataId) {
+                        // Search other categories
+                        for (let cat in MOCK_DATA) {
+                            if (MOCK_DATA[cat][dataId]) {
+                                let raw = MOCK_DATA[cat][dataId].value;
+                                let cleanVal = raw.replace(/,/g, '').replace(/%/g, '').replace(/K/g, '').replace(/억\$/g, '').replace(/조원/g, '');
+                                let parsed = parseFloat(cleanVal);
+                                if (!isNaN(parsed)) currentVal = parsed;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (ctx && !chartInstances[c.id]) initChart(ctx, c.id, currentVal);
+                });
+            }
+        }
+
+        function initChart(ctx, id, endValue) {
+            // 1 Year Data (Monthly)
+            const values = generateMockHistory(12, endValue).values;
+            const isUp = values[values.length - 1] >= values[0];
+            const color = isUp ? '#f87171' : '#60a5fa';
+
+            const labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+            chartInstances[id] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        borderColor: color,
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        fill: true,
+                        backgroundColor: (ctx) => {
+                            const grad = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.height);
+                            grad.addColorStop(0, isUp ? 'rgba(248, 113, 113, 0.25)' : 'rgba(96, 165, 250, 0.25)');
+                            grad.addColorStop(1, 'rgba(0,0,0,0)');
+                            return grad;
+                        },
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#94a3b8', font: { size: 11 } }
+                        },
+                        y: { display: true, position: 'left', grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b', font: { size: 10 } }, border: { display: false } }
+                    },
+                    interaction: { intersect: false, mode: 'index' }
+                }
+            });
+        }
+
+        function generateMockHistory(count, endValue) {
+            const values = [];
+            // If invalid endValue, default to 100
+            if (endValue === undefined || endValue === null || isNaN(endValue)) endValue = 100;
+
+            let curr = endValue;
+            for (let i = 0; i < count; i++) {
+                values.unshift(curr); // Add to front (reverse chronological generation)
+                // Variation
+                let change = (Math.random() - 0.5) * 0.1;
+                curr = curr / (1 + change);
+            }
+            return { values };
+        }
+
+        function canFormat(v) { return v && !isNaN(parseFloat(v)); }
+        function formatNumber(v) { let f = parseFloat(v); return (f > 0 ? '+' : '') + f.toFixed(2); }
+        function getDirection(v) { if (String(v).includes('-')) return 'down'; if (String(v).includes('+') || parseFloat(v) > 0) return 'up'; return 'neutral'; }
+
+    </script>
+</body>
+
+</html>
