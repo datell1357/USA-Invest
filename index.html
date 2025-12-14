@@ -593,7 +593,7 @@
         }
 		
 		function startCountdown() {
-			setInterval(() => {
+			setInterval(async () => {
 				if (!nextUpdateTime) return;
 				const now = new Date();
 
@@ -603,11 +603,13 @@
 				const timerEl = document.getElementById("refresh-timer");
 
 				if (diffSec >= 0) {
+				const displaySec = Math.max(diffSec, 0);
 					timerEl.textContent = `다음 갱신까지: ${diffSec}초`;
 				}
 
 				if (diffSec <= 0) {
-					location.reload();
+					await fetchAllData();
+					await fetchTimer();
 				}
 			}, 1000);
 		}
