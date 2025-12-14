@@ -604,8 +604,12 @@
 				timerEl.textContent = `다음 갱신까지: ${displaySec}초`;
 
 				if (diffSec <= 0) {
-					await fetchAllData();   // 최신 캐시 반영
-					await fetchTimer();    // 다음 갱신 시점 재동기화
+					await fetchAllData();
+
+					// 백엔드 scheduler가 NEXT_UPDATE를 갱신할 시간 확보
+					setTimeout(async () => {
+						await fetchTimer();
+					}, 1000); // ✅ 1초 지연
 				}
 			}, 1000);
 		}
