@@ -119,8 +119,8 @@ def start_scheduler():
 @app.get("/api/timer")
 def api_timer():
     return {
-        "last_update": LAST_UPDATE["stocks"].isoformat() if LAST_UPDATE["stocks"] else None,
-        "next_update": NEXT_UPDATE["stocks"].isoformat() if NEXT_UPDATE["stocks"] else None
+        "last_update": int(LAST_UPDATE["stocks"].timestamp() * 1000),
+        "next_update": int(NEXT_UPDATE["stocks"].timestamp() * 1000)
     }
 
 # Serve Static Files (Frontend)

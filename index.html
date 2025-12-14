@@ -433,7 +433,7 @@
 		async function fetchTimer() {
 			const res = await fetch(`${API_BASE_URL.replace('/api/finance', '')}/api/timer`);
 			const data = await res.json();
-			nextUpdateTime = new Date(data.next_update);
+			nextUpdateTime = new Date(data.next_update); // ms → Date OK
 		}
 
         const CATEGORIES = {
