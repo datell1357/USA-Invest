@@ -592,22 +592,25 @@
             renderLayout(cat);
         }
 		
+		let timerRunning = false;
+		
 		function startCountdown() {
+			if (timerRunning) return;
+			timerRunning = true;
+
 			setInterval(async () => {
-				if (remainingSec === null) return;
+				if (!nextUpdateTime) return;
+
+				const now = Date.now();
+				const diffMs = nextUpdateTime - now;
+				const diffSec = Math.max(Math.floor(diffMs / 1000), 0);
 
 				const timerEl = document.getElementById("refresh-timer");
-				timerEl.textContent = `다음 갱신까지: ${remainingSec}초`;
+				timerEl.textContent = `다음 갱신까지: ${diffSec}초`;
 
-				if (remainingSec <= 0) {
+				// 🔥 딱 한 번만 트리거
+				if (diffSec === 0) {
 					await fetchAllData();
-
-					// 서버가 NEXT_UPDATE 갱신할 시간
-					setTimeout(async () => {
-						await fetchTimer();
-					}, 1200);
-				} else {
-					remainingSec--;
 				}
 			}, 1000);
 		}

@@ -119,10 +119,17 @@ def start_scheduler():
 @app.get("/api/timer")
 def api_timer():
     now = datetime.now()
-    remaining = int((NEXT_UPDATE["stocks"] - now).total_seconds())
+
+    next_update = NEXT_UPDATE["stocks"]
+
+    # ⛔ 만약 scheduler 타이밍 어긋나서 과거라면 → 즉시 보정
+    if not next_update or next_update <= now:
+        next_update = now + timedelta(seconds=30)
+        NEXT_UPDATE["stocks"] = next_update
 
     return {
-        "remaining_seconds": max(remaining, 0)
+        "server_time": int(now.timestamp() * 1000),
+        "next_update": int(next_update.timestamp() * 1000)
     }
 
 
