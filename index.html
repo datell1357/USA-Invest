@@ -353,7 +353,7 @@
             display: flex;
             flex-direction: column;
             height: 100%;
-            min-height: 280px;
+            min-height: 250px;
         }
 
         .chart-title {
@@ -362,6 +362,42 @@
             margin-bottom: 0.8rem;
             font-weight: 700;
             text-align: center;
+        }
+
+        /* Specific Layout Tweaks */
+        /* Stocks Tab (7:3) - Taller Cards */
+        .grid-7-3 .card {
+            min-height: 320px; 
+            padding: 1.5rem 1.8rem;
+            justify-content: flex-start; /* Pin header to top */
+            gap: 1.5rem; /* Gap between header and content */
+        }
+
+        /* Distribute items inside Stocks cards */
+        .grid-7-3 .card .indices-2col-container {
+            flex: 1;
+            /* Grid container itself just holds columns. Columns need to stretch. */
+        }
+        
+        .grid-7-3 .card .indices-col {
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* Center items vertically for equal margins */
+            gap: 26px; /* Exact pixel spacing as requested */
+            height: 100%;
+        }
+
+        .grid-7-3 .card .sentiment-list {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-evenly; /* Distribute list items */
+        }
+        
+        /* Rates/Exchange Tab (Four Grid) - Compact Cards */
+        .four-grid .card {
+            min-height: 0;
+            padding: 0.8rem 1rem;
         }
 
         /* Utilities */
@@ -432,13 +468,26 @@
 		let timerTriggered = false;
 		
 		async function fetchTimer() {
-			const res = await fetch(`${API_BASE_URL.replace('/api/finance', '')}/api/timer`);
-			const data = await res.json();
+			try {
+				const res = await fetch(`${API_BASE_URL.replace('/api/finance', '')}/api/timer`);
+				const data = await res.json();
 
-			if (!data.next_update) return;
+				if (!data.next_update) return;
 
-			nextUpdateTimeMs = data.next_update; // ms 기준 절대시간
-			timerTriggered = false;              // 다음 사이클 준비
+				const now = Date.now();
+				// Backend job might take a moment. If next_update is in past/present, retry.
+				if (data.next_update > now + 2000) { 
+					nextUpdateTimeMs = data.next_update; 
+					timerTriggered = false; // Valid future time received, reset trigger
+				} else {
+					console.log("Waiting for new schedule...", data.next_update, now);
+					// Still old schedule? Retry fetch soon
+					setTimeout(fetchTimer, 2000); 
+				}
+			} catch (e) {
+				console.error("Timer fetch failed", e);
+				setTimeout(fetchTimer, 5000);
+			}
 		}
 
         const CATEGORIES = {
@@ -457,7 +506,7 @@
                             // Right Col
                             { id: 'wti', label: 'WTI 유가/원자재', url: 'https://kr.investing.com/commodities/crude-oil' },
                             { id: 'russell', label: '러셀 2000', url: 'https://kr.investing.com/indices/us-small-cap-2000' },
-                            { id: 'high_yield', label: '하이일드 스프레드', url: 'https://fred.stlouisfed.org/series/BAMLH0A0HYM2' }
+                            { id: 'high_yield', label: '하이일드 스프레드', url: 'https://www.indexergo.com/series/?frq=M&idxDetail=13404' }
                         ]
                     },
                     {
@@ -513,7 +562,7 @@
                         items: [
                             { id: 'kr_10y', label: '10년물', url: 'https://kr.investing.com/rates-bonds/south-korea-10-year-bond-yield' },
                             { id: 'kr_2y', label: '2년물', url: 'https://kr.investing.com/rates-bonds/south-korea-2-year-bond-yield' },
-                            { id: 'kr_base', label: '기준금리', url: 'https://kr.investing.com/central-banks/bank-of-korea' }
+                            { id: 'kr_base', label: '기준금리', url: 'https://kr.investing.com/economic-calendar/south-korea-interest-rate-decision-283' }
                         ]
                     },
                     {
@@ -531,9 +580,9 @@
                 layoutClass: 'four-grid',
                 groups: [
                     { id: 'dxy_card', label: '달러인덱스', type: 'val_simple', items: [{ id: 'dxy', url: 'https://kr.investing.com/currencies/us-dollar-index' }] },
-                    { id: 'krw_card', label: '원/달러 환율', type: 'val_simple', items: [{ id: 'usd_krw', url: 'https://kr.investing.com/currencies/usd-krw' }] },
-                    { id: 'res_card', label: '외환보유고', type: 'val_with_dates', items: [{ id: 'foreign_reserves', url: 'https://www.bok.or.kr/portal/main/main.do' }] },
-                    { id: 'bond_card', label: '외국인 채권매수', type: 'val_with_dates', items: [{ id: 'foreign_bond', url: 'https://www.bondweb.co.kr/' }] },
+                    { id: 'krw_card', label: '원/달러 환율', type: 'val_simple', items: [{ id: 'usd_krw', url: 'https://finance.yahoo.com/quote/KRW%3DX/' }] },
+                    { id: 'res_card', label: '외환보유고', type: 'val_with_dates', items: [{ id: 'foreign_reserves', url: 'https://kr.investing.com/economic-calendar/south-korea-fx-reserves-usd-1889' }] },
+                    { id: 'bond_card', label: '외국인 주식보유', type: 'val_with_dates', items: [{ id: 'foreign_bond', url: 'http://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020503' }] },
                 ],
                 charts: [
                     { id: 'dxy_chart', label: '달러인덱스' },
@@ -630,11 +679,12 @@
         async function fetchAllData() {
             try {
                 // Parallel Fetch
-                const [stocks, economy, rates, exchange] = await Promise.all([
+                const [stocks, economy, rates, exchange, _history] = await Promise.all([
                     fetch(`${API_BASE_URL}/stocks`).then(r => r.json()),
                     fetch(`${API_BASE_URL}/economy`).then(r => r.json()),
                     fetch(`${API_BASE_URL}/rates`).then(r => r.json()),
-                    fetch(`${API_BASE_URL}/exchange`).then(r => r.json())
+                    fetch(`${API_BASE_URL}/exchange`).then(r => r.json()),
+                    fetchHistoryData()
                 ]);
 
                 if (stocks) MOCK_DATA.stocks = stocks;
@@ -707,9 +757,9 @@
                 <div class="idx-right-group" style="flex:1; text-align:right;">
                      <!-- Combined Change and Percent -->
                      <div class="idx-change loading-pulse" id="ch-${item.id}">--</div>
-                     <div id="date-row-${item.id}" style="display:none; font-size:0.7rem; color:#64748b; margin-top:2px;">
-                        다음: <span id="next-${item.id}">--</span>
-                    </div>
+                     <div id="date-row-${item.id}" style="display:none; font-size: 0.75rem; color: #6c757d; margin-top: 2px; text-align: right;">
+                    <span id="next-${item.id}">--</span>
+                </div>
                 </div>
             `;
             return row;
@@ -892,6 +942,9 @@
                         // Hide change for Policy Rates
                         if (item.id === 'fear_greed' || item.id === 'fed_rate' || item.id === 'jp_policy' || item.id === 'kr_base') {
                             chEl.style.display = 'none';
+                        } else if (item.id === 'non_farm') {
+                            chEl.innerText = '-';
+                            chEl.className = 'sv-badge';
                         } else {
                             let raw = d.change || "0";
                             let rawPct = d.percent;
@@ -932,11 +985,35 @@
                     }
 
 
+
                     // General Date Handling
                     if (d.date || d.next || d.next_date) {
                         if (dateRowEl) dateRowEl.style.display = 'block';
                         if (dateEl) dateEl.innerText = d.date || '';
-                        if (nextEl) nextEl.innerText = d.next || d.next_date || '';
+                        if (nextEl) {
+                            if (d.next_date && d.next_date.trim() !== '') {
+                                nextEl.innerText = d.next_date;
+                            } else if (d.next && d.next.trim() !== '') { // Keep d.next if d.next_date is empty
+                                nextEl.innerText = d.next;
+                            } else {
+                                nextEl.innerText = '미발표';
+                                nextEl.style.color = '#64748b'; // Dim color for n/a
+                            }
+                        }
+                    }
+
+                    // Special Logic for KRX Foreign Holding (foreign_bond)
+                    if (item.id === 'foreign_bond') {
+                        if (chEl) {
+                            chEl.innerText = d.percent;
+                            chEl.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                            chEl.style.color = '#fff';
+                            chEl.classList.remove('bg-up', 'bg-down', 'c-up', 'c-down');
+                        }
+                        // Hide 'Next' date
+                         if (nextEl && nextEl.parentElement) {
+                            nextEl.parentElement.style.display = 'none';
+                        }
                     }
                 });
             });
@@ -984,23 +1061,86 @@
             }
         }
 
-        function initChart(ctx, id, endValue) {
-            // 1 Year Data (Monthly)
-            const values = generateMockHistory(12, endValue).values;
-            const isUp = values[values.length - 1] >= values[0];
-            const color = isUp ? '#f87171' : '#60a5fa';
 
-            const labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+        // --- History Data ---
+        let HISTORY_DATA = {};
+
+        async function fetchHistoryData() {
+            try {
+                const res = await fetch(`${API_BASE_URL}/history`);
+                if (res.ok) {
+                    HISTORY_DATA = await res.json();
+                    console.log("[Front] History fetched:", Object.keys(HISTORY_DATA));
+                }
+            } catch (e) {
+                console.error("[Front] History fetch failed:", e);
+            }
+        }
+
+        
+        // ... (Charts)
+        
+        function initChart(ctx, id, currentVal) {
+             // Default Empty
+            let values = [];
+            let labels = [];
+            
+            // 1. Get History
+            if (HISTORY_DATA[id]) {
+                const h = HISTORY_DATA[id];
+                if (h.values && h.dates) {
+                    values = [...h.values]; // Copy
+                    labels = [...h.dates];
+                }
+            }
+            
+            // 2. Append Current Value (Realtime connection)
+            // Only if currentVal is valid
+            if (currentVal !== null && !isNaN(currentVal)) {
+                 // Check last date to avoid dups? 
+                 // Simple logic: Just append "Now" or Today
+                 values.push(currentVal);
+                 labels.push("Current");
+            }
+            
+            // Fallback if no data
+            if (values.length === 0) {
+                 values = [currentVal || 100, currentVal || 100];
+                 labels = ["Start", "End"];
+            }
+
+            // Determine Color
+            const startVal = values[0];
+            const endVal = values[values.length - 1];
+            const isUp = endVal >= startVal;
+            const color = isUp ? '#f87171' : '#60a5fa'; // Red : Blue
+
+            // Simplify Labels (Show only start/end or every Nth?)
+            // Chart.js handles this automatically usually, but let's hide x-grid
+            
+
+            // Format Labels: Convert YYYY-MM-DD to YY.MM (e.g., 24.12)
+            const formattedLabels = labels.map(l => {
+                if (l === "Current" || l === "Now") return "Now";
+                // l is "YYYY-MM-DD"
+                if (l.length >= 7) {
+                    return `${l.substring(2, 4)}.${l.substring(5, 7)}`;
+                }
+                return l;
+            });
+
 
             chartInstances[id] = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels,
+                    labels: formattedLabels,
                     datasets: [{
                         data: values,
                         borderColor: color,
                         borderWidth: 2,
-                        pointRadius: 3,
+                        pointRadius: 2, // Show small points for month
+                        pointHoverRadius: 4,
                         fill: true,
                         backgroundColor: (ctx) => {
                             const grad = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.height);
@@ -1008,38 +1148,32 @@
                             grad.addColorStop(1, 'rgba(0,0,0,0)');
                             return grad;
                         },
-                        tension: 0.3
+                        tension: 0.4 // Smoother curve for monthly
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
                     scales: {
                         x: {
+                            display: true, // Show X Axis
                             grid: { display: false },
-                            ticks: { color: '#94a3b8', font: { size: 11 } }
+                            ticks: { 
+                                color: '#94a3b8', 
+                                font: { size: 10 },
+                                maxRotation: 0,
+                                autoSkip: false, // Show All Labels
+                                maxTicksLimit: 15 
+                            }
                         },
-                        y: { display: true, position: 'left', grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b', font: { size: 10 } }, border: { display: false } }
+
+                        y: { display: true, position: 'left', grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b', font: { size: 9 } }, border: { display: false } }
                     },
-                    interaction: { intersect: false, mode: 'index' }
+                    interaction: { intersect: false, mode: 'nearest', axis: 'x' }
                 }
             });
-        }
 
-        function generateMockHistory(count, endValue) {
-            const values = [];
-            // If invalid endValue, default to 100
-            if (endValue === undefined || endValue === null || isNaN(endValue)) endValue = 100;
-
-            let curr = endValue;
-            for (let i = 0; i < count; i++) {
-                values.unshift(curr); // Add to front (reverse chronological generation)
-                // Variation
-                let change = (Math.random() - 0.5) * 0.1;
-                curr = curr / (1 + change);
-            }
-            return { values };
         }
 
         function canFormat(v) { return v && !isNaN(parseFloat(v)); }

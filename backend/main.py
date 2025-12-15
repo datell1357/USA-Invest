@@ -5,6 +5,18 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta
 import uvicorn
 import finance_service
+from fastapi.staticfiles import StaticFiles
+import os
+import sys
+from dotenv import load_dotenv
+
+# Load .env
+load_dotenv()
+
+# Add backend directory and project root to sys.path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(current_dir)
+sys.path.append(os.path.dirname(current_dir))
 
 app = FastAPI()
 
@@ -13,7 +25,9 @@ CACHE = {
     "stocks": {},
     "economy": {},
     "rates": {},
-    "exchange": {}
+    "exchange": {},
+    # [NEW] History Cache
+    "history": {}
 }
 
 LAST_UPDATE = { "stocks": None }
@@ -28,57 +42,91 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-
 )
 
-from fastapi.staticfiles import StaticFiles
-import os
+def safe_update_cache(category, new_data):
+    """Updates the cache category with new keys, preserving existing ones."""
+    if new_data:
+        CACHE[category].update(new_data)
 
-# Mount the parent directory to serve index.html
-# Careful not to expose sensitive files if meaningful, but for this demo it's fine.
-# We mount it at the root.
-# Note: Put this AFTER API routes so API takes precedence, OR use a specific path.
-# Actually, for 'html=True' at root, it acts as a catch-all.
-# Better to explicit API routes first.
+# --- Stocks Jobs ---
 
-def update_stocks_job():
+def update_realtime_stocks_job():
     try:
-        print("[JOB] Updating stocks (30 sec)")
-        CACHE["stocks"] = finance_service.get_stocks_data()
+        # print("[JOB] Updating stocks realtime (30 sec)")
+        data = finance_service.get_realtime_stocks()
+        safe_update_cache("stocks", data)
 
         now = datetime.now()
-
         LAST_UPDATE["stocks"] = now
         NEXT_UPDATE["stocks"] = now + timedelta(seconds=30)
-
     except Exception as e:
-        print("[ERROR] update_stocks_job:", e)
+        print("[ERROR] update_realtime_stocks_job:", e)
 
-def update_rates_job():
-    print("[JOB] Updating rates (5 min)")
-    CACHE["rates"] = finance_service.get_rates_data()
+def update_daily_stocks_job():
+    try:
+        print("[JOB] Updating stocks daily (High Yield, etc.)")
+        data = finance_service.get_daily_stocks()
+        safe_update_cache("stocks", data)
+    except Exception as e:
+        print("[ERROR] update_daily_stocks_job:", e)
 
-def update_exchange_job():
-    print("[JOB] Updating exchange (5 min)")
-    CACHE["exchange"] = finance_service.get_exchange_data()
+# --- Rates Jobs ---
 
-def update_economy_job():
-    print("[JOB] Updating economy (00:00, 12:00)")
-    CACHE["economy"] = finance_service.get_economy_data()
+def update_realtime_rates_job():
+    # print("[JOB] Updating rates realtime (5 min)")
+    data = finance_service.get_realtime_rates()
+    safe_update_cache("rates", data)
 
-# Render Health Check 용도. 항상 200 OK를 리턴합니다.
+def update_daily_rates_job():
+    print("[JOB] Updating rates daily (Fed Rate, etc.)")
+    data = finance_service.get_daily_rates()
+    safe_update_cache("rates", data)
+
+# --- Exchange Jobs ---
+
+def update_realtime_exchange_job():
+    # print("[JOB] Updating exchange realtime (5 min)")
+    data = finance_service.get_realtime_exchange()
+    safe_update_cache("exchange", data)
+
+def update_daily_exchange_job():
+    print("[JOB] Updating exchange daily (Reserves, etc.)")
+    data = finance_service.get_daily_exchange()
+    safe_update_cache("exchange", data)
+
+# --- Economy Jobs ---
+
+def update_daily_economy_job():
+    print("[JOB] Updating economy daily (00:00, 12:00)")
+    data = finance_service.get_daily_economy()
+    safe_update_cache("economy", data)
+
+# --- History Jobs (NEW) ---
+
+def update_history_job():
+    print("[JOB] Updating history data (Daily)")
+    try:
+        data = finance_service.get_all_history_data()
+        # History replaces entire dict if successful
+        if data:
+            CACHE["history"] = data
+    except Exception as e:
+        print(f"[ERROR] update_history_job: {e}")
+
+# --- API Routes ---
+
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
 
-# UptimeBot Health Check 용도. 항상 200 OK를 리턴합니다.    
 @app.head("/")
 def head_root():
     return Response(status_code=200)
+
 @app.head("/health")
 def head_health():
     return Response(status_code=200)
-
 
 @app.get("/api/finance/stocks")
 def api_stocks():
@@ -95,27 +143,12 @@ def api_rates():
 @app.get("/api/finance/exchange")
 def api_exchange():
     return CACHE["exchange"]
+
+@app.get("/api/finance/history")
+def api_history():
+    """Returns 1-year history data for charts."""
+    return CACHE["history"]
     
-@app.on_event("startup")
-def start_scheduler():
-    update_stocks_job()
-    update_rates_job()
-    update_exchange_job()
-    update_economy_job()
-    
-    # 30초 주기: 변동성 큰 데이터
-    scheduler.add_job(update_stocks_job, "interval", seconds=30)
-
-    # 5분 주기: 변동성 적은 데이터
-    scheduler.add_job(update_rates_job, "interval", minutes=5)
-    scheduler.add_job(update_exchange_job, "interval", minutes=5)
-
-    # 하루 2회 실행: 발표일 기반 지표
-    scheduler.add_job(update_economy_job, "cron", hour=0, minute=0)
-    scheduler.add_job(update_economy_job, "cron", hour=12, minute=0)
-
-    scheduler.start()
-
 @app.get("/api/timer")
 def api_timer():
     if not LAST_UPDATE["stocks"] or not NEXT_UPDATE["stocks"]:
@@ -126,15 +159,65 @@ def api_timer():
         "next_update": int(NEXT_UPDATE["stocks"].timestamp() * 1000)
     }
 
+# Startup Jobs Wrapper
+def run_startup_jobs():
+    print("[Startup] Executing initial data fetch...")
+    try:
+        update_realtime_stocks_job()
+        update_realtime_rates_job()
+        update_realtime_exchange_job()
+        
+        update_daily_stocks_job()
+        update_daily_rates_job()
+        update_daily_exchange_job()
+        update_daily_economy_job()
+        
+        # Fetch history on startup
+        update_history_job()
+        
+        print("[Startup] Initial data fetch completed.")
+    except Exception as e:
+        print(f"[Startup] Error during initial fetch: {e}")
+
+@app.on_event("startup")
+def start_scheduler():
+    # Run all jobs once on startup to populate cache (Sequentially in a single thread to avoid overload)
+    # Schedule the startup job to run immediately
+    scheduler.add_job(run_startup_jobs)
+    
+    # 30초: Stocks Realtime
+    scheduler.add_job(update_realtime_stocks_job, "interval", seconds=30)
+
+    # 5분: Rates & Exchange Realtime
+    scheduler.add_job(update_realtime_rates_job, "interval", minutes=5)
+    scheduler.add_job(update_realtime_exchange_job, "interval", minutes=5)
+
+    # 하루 2회 (00:00, 12:00): Daily Jobs (Formerly Rollover/Static)
+    # Applying strictly to all "daily" fetchers
+    daily_jobs = [
+        update_daily_stocks_job, 
+        update_daily_rates_job, 
+        update_daily_exchange_job, 
+        update_daily_economy_job
+    ]
+    
+    for job in daily_jobs:
+        scheduler.add_job(job, "cron", hour=0, minute=0)
+        scheduler.add_job(job, "cron", hour=12, minute=0)
+
+    # History Job (5분 오프셋)
+    scheduler.add_job(update_history_job, "cron", hour=0, minute=5)
+    scheduler.add_job(update_history_job, "cron", hour=12, minute=5)
+
+
+    scheduler.start()
 
 # Serve Static Files (Frontend)
 try:
-    # Go up one level from 'backend' to 'USA Invest'
     static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
     app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 except Exception as e:
     print(f"Failed to mount static files: {e}")
 
 if __name__ == "__main__":
-    # Run on localhost:8000
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

@@ -1,19 +1,24 @@
 import yfinance as yf
-import random
 import requests
-from datetime import datetime
+import os
+from datetime import datetime, timedelta
+import crawler_service
+import FinanceDataReader as fdr
+
+# FRED API Key configuration (Restored as requested)
+FRED_API_KEY = os.environ.get("FRED_API_KEY", "98f9a9461a5eed275514aad3fb514d53")
+
 
 def get_ticker_data(ticker_symbol):
     """
-    Fetches data for a single ticker.
+    Fetches data for a single ticker using yfinance.
     Returns: { 'value': str, 'change': str, 'percent': float }
     """
     try:
         ticker = yf.Ticker(ticker_symbol)
-        # Get fast info first (faster than history)
+        # Get fast info first
         info = ticker.fast_info
         
-        # Fallback to history if fast_info is missing key data
         price = None
         prev_close = None
         
@@ -21,7 +26,6 @@ def get_ticker_data(ticker_symbol):
             price = info.last_price
             prev_close = info.previous_close
         else:
-            # Fallback to history (1 day)
             hist = ticker.history(period="2d")
             if not hist.empty:
                 price = hist['Close'].iloc[-1]
@@ -33,7 +37,6 @@ def get_ticker_data(ticker_symbol):
         change = price - prev_close
         percent = (change / prev_close) * 100
         
-        # Format
         sign = "+" if change >= 0 else ""
         return {
             "value": f"{price:,.2f}",
@@ -43,184 +46,484 @@ def get_ticker_data(ticker_symbol):
             "raw_percent": percent
         }
     except Exception as e:
-        print(f"Error fetching {ticker_symbol}: {e}")
+        print(f"Error fetching ticker {ticker_symbol}: {e}")
         return None
 
-def get_stocks_data():
-    # 1. Try to fetch real-time from yfinance if available
-    # 2. If valid, return it. If not, fallback to Snapshot (Dec 6)
+def get_fred_data(series_id, label_type="value"):
+    """
+    Fetches latest observation from FRED API.
+    Returns dictionary with value, date, change (calculated if possible).
+    """
+    if not FRED_API_KEY:
+        print(f"[FRED] Missing API Key. Skipping {series_id}")
+        return None
+        
+    url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=2"
     
-    # Snapshot Defaults (Dec 6)
-    snapshot = {
-        'sp_futures': { "value": "6,878.25", "change": "-7.25", "percent": "-0.11" },
-        'dow_futures': { "value": "48,001.00", "change": "-49.00", "percent": "-0.10" },
-        'nasdaq_futures': { "value": "25,718.25", "change": "+95.50", "percent": "+0.37" },
-        'wti': { "value": "60.08", "change": "+0.41", "percent": "+0.69" },
-        'russell': { "value": "2,520.95", "change": "-10.21", "percent": "-0.40" },
-        'vix': { "value": "15.42", "change": "-1.01", "percent": "-6.15" },
-        'high_yield': { "value": "2.89", "date": "2025-12-04", "next": "2025-12-05" },
-        'fear_greed': { "value": "40", "change": "0", "raw_change": 0 }
+    try:
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        observations = data.get('observations', [])
+        
+        if not observations:
+            return None
+            
+        latest = observations[0]
+        prev = observations[1] if len(observations) > 1 else None
+        
+        val_str = latest['value']
+        date_str = latest['date'] # YYYY-MM-DD
+        
+        if val_str == '.':
+            return None
+            
+        val = float(val_str)
+        
+        # Calculate change
+        change_str = "0.00"
+        percent_str = "0.00%"
+        
+        if prev and prev['value'] != '.':
+            prev_val = float(prev['value'])
+            change = val - prev_val
+            pct = (change / prev_val) * 100 if prev_val != 0 else 0
+            
+            sign = "+" if change >= 0 else ""
+            change_str = f"{sign}{change:,.2f}"
+            percent_str = f"{sign}{pct:,.2f}%"
+
+        # Formatting based on label_type
+        formatted_val = f"{val:,.2f}"
+        if label_type == "percent":
+           formatted_val = f"{val:,.2f}%"
+        elif label_type == "int":
+           formatted_val = f"{int(val):,}"
+
+        return {
+            "value": formatted_val,
+            "change": change_str,
+            "percent": percent_str,
+            "date": date_str,
+            "next_date": "TBD" # FRED doesn't provide next release date easily in this endpoint
+        }
+
+    except Exception as e:
+        print(f"[FRED] Error fetching {series_id}: {e}")
+        return None
+
+# --- Stocks ---
+
+import crawler_service
+
+# ... (Previous code)
+
+# --- Stocks ---
+
+def get_realtime_stocks():
+    """Fetches stock data via Investing.com Crawling (30s job)"""
+    # User requested consistency with Investing.com URLs.
+    # Switching from yfinance to direct crawling.
+    targets = {
+        'sp_futures': 'https://kr.investing.com/indices/us-spx-500-futures',
+        'dow_futures': 'https://kr.investing.com/indices/us-30-futures',
+        'nasdaq_futures': 'https://kr.investing.com/indices/nq-100-futures',
+        'wti': 'https://kr.investing.com/commodities/crude-oil',
+        #'russell': 'https://kr.investing.com/indices/smallcap-2000', # 500 Error
+        'vix': 'https://kr.investing.com/indices/volatility-s-p-500'
     }
-
-    # Tickers mapping
-    tickers = {
-        'sp_futures': 'ES=F',
-        'dow_futures': 'YM=F',
-        'nasdaq_futures': 'NQ=F',
-        'wti': 'CL=F',
-        'russell': 'RTY=F',
-        'vix': '^VIX'
-    }
-
-    result = snapshot.copy()
-
-    # Attempt Live Fetch (Optional - uncomment to enable live fetching mixed with snapshot)
-    # Attempt Live Fetch
-    for key, symbol in tickers.items():
-        data = get_ticker_data(symbol)
+    
+    result = {}
+    
+    # Crawl each target
+    for key, url in targets.items():
+        # Use existing fetch_investing_price
+        # It handles value, change, percent
+        data = crawler_service.fetch_investing_price(url, key)
         if data:
             result[key] = data
             
-    # Auto-Rollover for High Yield
-    snapshot['high_yield'] = check_date_rollover(snapshot['high_yield'])
+    # Russell 2000 -> yfinance (^RUT)
+    # Switched from Google Finance due to crawling instability (NaN% issue)
+    russell = get_ticker_data('^RUT')
+    if russell:
+        result['russell'] = russell
+            
+    # Fear & Greed (Library or Crawl)
+    fg = crawler_service.get_fear_greed_index()
+    if fg:
+        result['fear_greed'] = {
+            "value": fg['value'],
+            "change": "0", 
+            "percent": fg['description'] 
+        }
+            
+    return result
+
+def get_daily_stocks():
+    """Fetches daily stock-related data via Crawler (Daily job)"""
+    result = {}
+    
+    # High Yield Spread (IndexerGo)
+    high_yield = crawler_service.fetch_indexergo_data(
+        'https://www.indexergo.com/series/?frq=M&idxDetail=13404', 'HighYield'
+    )
+    if high_yield:
+         result['high_yield'] = high_yield
+        
+    return result
+
+# --- Rates ---
+
+def get_realtime_rates():
+    """Fetches live rates via yfinance & Investing.com (5m job)"""
+    result = {}
+    
+    # 1. US 10Y Yield (yfinance)
+    us_10y = get_ticker_data('^TNX')
+    if us_10y:
+        result['us_10y'] = us_10y
+        
+    # 2. US 2Y Yield (Investing.com)
+    us_2y = crawler_service.fetch_investing_price(
+        'https://kr.investing.com/rates-bonds/u.s.-2-year-bond-yield', 'US2Y'
+    )
+    if us_2y: result['us_2y'] = us_2y
+    
+
+    # 3. 10-2Y Spread (FRED API)
+    # Changed from Investing.com Crawling to FRED API
+    spread = get_fred_latest_two('T10Y2Y', 'US10Y2Y')
+    if spread: 
+        spread['url'] = 'https://fred.stlouisfed.org/series/T10Y2Y'
+        result['us_10_2_spread'] = spread
+
+    
+    # 4. Japan 2Y (Investing.com)
+    jp_2y = crawler_service.fetch_investing_price(
+        'https://kr.investing.com/rates-bonds/japan-2-year-bond-yield', 'JP2Y'
+    )
+    if jp_2y: result['jp_2y'] = jp_2y
+    
+    # 5. Korea 10Y (Investing.com)
+    kr_10y = crawler_service.fetch_investing_price(
+        'https://kr.investing.com/rates-bonds/south-korea-10-year-bond-yield', 'KR10Y'
+    )
+    if kr_10y: result['kr_10y'] = kr_10y
+    
+    # 6. Korea 2Y (Investing.com)
+    kr_2y = crawler_service.fetch_investing_price(
+        'https://kr.investing.com/rates-bonds/south-korea-2-year-bond-yield', 'KR2Y'
+    )
+    if kr_2y: result['kr_2y'] = kr_2y
+        
+    return result
+
+def get_daily_rates():
+    """Fetches official rates via Investing.com Crawling (Daily job)"""
+    result = {}
+    
+    # 1. Fed Funds Rate (Decision)
+    fed = crawler_service.fetch_investing_calendar_actual(
+        'https://kr.investing.com/economic-calendar/interest-rate-decision-168', 168, 'FedRate'
+    )
+    if fed: result['fed_rate'] = fed
+    
+    # 2. SOFR (NY Fed API)
+    sofr = crawler_service.fetch_ny_fed_sofr()
+    if sofr: result['sofr'] = sofr
+    
+    # 3. Japan Policy Rate (Decision)
+    jp_rate = crawler_service.fetch_investing_calendar_actual(
+        'https://kr.investing.com/economic-calendar/boj-interest-rate-decision-164', 164, 'BOJRate'
+    )
+    if jp_rate: result['jp_policy'] = jp_rate
+    
+    # 4. Korea Base Rate (Decision)
+    kr_rate = crawler_service.fetch_investing_calendar_actual(
+        'https://kr.investing.com/economic-calendar/south-korea-interest-rate-decision-283', 283, 'BOKRate'
+    )
+    if kr_rate: result['kr_base'] = kr_rate
     
     return result
 
-def get_economy_data():
-    # Latest Official Data (As of Dec 6, 2025)
-    data = {
-        'cci': {"value": "88.7", "change": "-6.8", "date": "2025-11-25", "next_date": "2025-12-23"},
-        'pmi': {"value": "48.2", "change": "-0.3", "date": "2025-12-01", "next_date": "2026-01-02"},
-        'unemployment': {"value": "4.4%", "change": "+0.0%", "date": "2025-11-20", "next_date": "2025-12-16"},
-        'non_farm': {"value": "119K", "change": "+12K", "date": "2025-11-20", "next_date": "2025-12-16"}
-    }
+# --- Exchange ---
+
+def get_realtime_exchange():
+    """Fetches live exchange rates via Investing.com Crawling (5m job)"""
+    result = {}
     
-    for k, v in data.items():
-        data[k] = check_date_rollover(v)
+    # DXY -> Investing.com
+    dxy = crawler_service.fetch_investing_price(
+        'https://kr.investing.com/currencies/us-dollar-index', 'DXY'
+    )
+    if dxy: result['dxy'] = dxy
+    
+    # USD/KRW -> yfinance (User Request)
+    usd_krw = get_ticker_data('KRW=X')
+    if usd_krw: result['usd_krw'] = usd_krw
+    
+    return result
+
+def get_daily_exchange():
+    """Fetches reserves etc. via Investing.com Crawling (Daily job)"""
+    result = {}
+    
+    # Korea Reserves
+    res = crawler_service.fetch_investing_calendar_actual(
+        'https://kr.investing.com/economic-calendar/south-korea-fx-reserves-usd-1889', 1889, 'Reserves'
+    )
+    if res:
+        result['foreign_reserves'] = res
         
-    return data
+    # Foreign Holding (KRX) via Pykrx
+    try:
+        # Try importing based on execution context
+        try:
+            import backend.crawler.krx_crawler as krx_crawler
+        except ImportError:
+            import crawler.krx_crawler as krx_crawler
+            
+        krx_data = krx_crawler.get_foreign_holding_data()
+        if krx_data:
+            # Map to Frontend expected format
+            # value: Market Cap (won), percent: "31.82%", date: YYYY-MM-DD
+            # Using 'foreign_bond' key to replace existing card
+            
+            # Convert Won to Trillion (조) for display or keep raw? 
+            # Frontend usually handles raw strings, but let's format it nicely.
+            # Value is float.
+            val_trillion = krx_data['value'] / 1000000000000 # 10^12
+            
+            result['foreign_bond'] = {
+                "value": f"{val_trillion:.1f}조",
+                "change": "", # No change value (User request)
+                "percent": krx_data['percent'], # "31.82%"
+                "date": krx_data['date'],
+                "next_date": "" # User: No next date
+            }
+    except Exception as e:
+        print(f"Error fetching KRX data: {e}")
 
-def get_rates_data():
-    # Snapshot Dec 6 Defaults
-    snapshot = {
-        'us_10y': {"value": "4.14", "change": "-0.04", "percent": "-0.96"},
-        'us_2y': {"value": "3.56", "change": "-0.03", "percent": "-0.84"},
-        'us_10_2_spread': {"value": "0.58", "change": "-0.01", "percent": "-1.72"},
-        'fed_rate': {"value": "4.50", "change": "0.00", "percent": "0.00", "date": "2025-11-07", "next_date": "2025-12-18"},
-        'jp_2y': {"value": "1.01", "change": "+0.01", "percent": "+0.99"},
-        'jp_policy': {"value": "0.50", "change": "0.00", "date": "2025-10-31", "next_date": "2025-12-19"},
-        'kr_10y': {"value": "3.375", "change": "+0.02", "percent": "+0.60"},
-        'kr_2y': {"value": "2.87", "change": "-0.01", "percent": "-0.35"},
-        'kr_base': {"value": "2.50", "change": "0.00", "date": "2025-11-28", "next_date": "2026-01-11"},
-        'sofr': {"value": "3.92", "change": "-0.03"}
-    }
+    return result
 
-    # Attempt Live Fetch for US 10Y
-    us_10y_data = get_ticker_data('^TNX')
-    if us_10y_data:
-        snapshot['us_10y'] = us_10y_data
+# --- Economy ---
 
-    # Auto-Rollover Check for Base Rates
-    for key in ['fed_rate', 'jp_policy', 'kr_base']:
-        snapshot[key] = check_date_rollover(snapshot[key])
+def get_daily_economy():
+    """Fetches economic indicators via Investing.com Crawling (Daily job)"""
+    result = {}
+    
+    # CCI (Consumer Confidence)
+    cci = crawler_service.fetch_investing_calendar_actual(
+        'https://kr.investing.com/economic-calendar/cb-consumer-confidence-48', 48, 'CCI'
+    )
+    if cci: result['cci'] = cci
+    
+    # Unemployment
+    unemp = crawler_service.fetch_investing_calendar_actual(
+        'https://kr.investing.com/economic-calendar/unemployment-rate-300', 300, 'Unemployment'
+    )
+    if unemp: result['unemployment'] = unemp
+    
+    # Non-Farm
+    nfp = crawler_service.fetch_investing_calendar_actual(
+        'https://kr.investing.com/economic-calendar/nonfarm-payrolls-227', 227, 'NFP'
+    )
+    if nfp: result['non_farm'] = nfp
         
-    return snapshot
+    # PMI
+    pmi = crawler_service.fetch_investing_calendar_actual(
+        'https://kr.investing.com/economic-calendar/ism-manufacturing-pmi-173', 
+        173, 'PMI'
+    )
+    if pmi: result['pmi'] = pmi
+    
+    # High Yield Spread
+    # User Request: Use IndexerGo URL
+    high_yield = crawler_service.fetch_indexergo_data(
+        'https://www.indexergo.com/series/?frq=M&idxDetail=13404', 'HighYield'
+    )
+    if high_yield:
+         result['high_yield'] = high_yield
+    
+    return result
 
-def check_date_rollover(item):
+
+# --- History Data (Charts) ---
+
+def get_history_values_yf(ticker, period="1y"):
     """
-    Checks if 'next_date' (or 'next') has passed. If so, updates 'date'
-    and increments 'next_date' by ~30 days.
-    Also adds a small random fluctuation to 'value' to simulate new data.
+    Fetches historical closing prices from yfinance.
+    Returns: { 'dates': [str], 'values': [float] }
     """
     try:
-        today = datetime.now().date()
-        # Parse dates (assuming YYYY-MM-DD format from our code)
-        next_d_str = item.get('next_date', item.get('next', '2099-12-31'))
-        # Handle "TBD" or invalid
-        if next_d_str == 'TBD': return item
+        t = yf.Ticker(ticker)
+        # Fetch Monthly data
+        hist = t.history(period=period, interval="1mo")
+        if hist.empty:
+            return None
+            
+        dates = [d.strftime('%Y-%m-%d') for d in hist.index]
+        values = [float(v) for v in hist['Close']]
         
-        next_d = datetime.strptime(next_d_str, "%Y-%m-%d").date()
-        
-        if today >= next_d:
-            # ROI: Update Date
-            item['date'] = next_d_str
-            
-            # Next date + 30 days (approx)
-            new_next = next_d.replace(month=next_d.month+1) if next_d.month < 12 else next_d.replace(year=next_d.year+1, month=1)
-            new_next_str = new_next.strftime("%Y-%m-%d")
-            
-            if 'next_date' in item:
-                item['next_date'] = new_next_str
-            else:
-                item['next'] = new_next_str
-            
-            # Simulate Data Change (since we lack API)
-            # -0.5% to +0.5% change
-            val_str = item['value'].replace('%','').replace('K','').replace('B','').replace('억$','').replace(',','')
-            try:
-                val = float(val_str)
-                change = val * (random.uniform(-0.005, 0.005))
-                new_val = val + change
-                
-                # Re-format based on original style
-                if '%' in item['value']:
-                    item['value'] = f"{new_val:.1f}%"
-                elif 'K' in item['value']:
-                    item['value'] = f"{int(new_val)}K"
-                elif '억$' in item['value']:
-                    item['value'] = f"{int(new_val)}억$"
-                else:
-                    item['value'] = f"{new_val:.2f}"
-                    
-                # Update change field too
-                sign = "+" if change >= 0 else ""
-                item['change'] = f"{sign}{change:.2f}"
-                
-            except:
-                pass # parsing failed, skip value update
-                
+        return {'dates': dates, 'values': values}
     except Exception as e:
-        print(f"Rollover check failed: {e}")
-        
-    return item
+        print(f"[History] Error fetching {ticker}: {e}")
+        return None
 
-def get_exchange_data():
-    # Snapshot Dec 6 Defaults
-    snapshot = {
-        'dxy': {"value": "98.99", "change": "-0.01"},
-        'usd_krw': {"value": "1,473.81", "change": "+0.60"},
-        'foreign_reserves': {"value": "4,307억$", "change": "+19억", "date": "2025-12-04", "next_date": "2026-01-05"},
-        'foreign_bond': {"value": "1,807억$", "change": "+46억", "date": "2025-12-01", "next_date": "2026-01-01"}
+def get_history_values_fred(series_id):
+    """
+    Fetches historical data from FRED API (1 year).
+    Returns: { 'dates': [str], 'values': [float] }
+    """
+    if not FRED_API_KEY:
+        return None
+        
+    try:
+        # approx 1 year + buffer
+        start_date = (datetime.now() - timedelta(days=400)).strftime('%Y-%m-%d')
+        
+        url = "https://api.stlouisfed.org/fred/series/observations"
+        params = {
+            "series_id": series_id,
+            "api_key": FRED_API_KEY,
+            "file_type": "json",
+            "observation_start": start_date,
+            "sort_order": "asc",
+            "frequency": "m"  # Monthly
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        observations = data.get('observations', [])
+        
+        dates = []
+        values = []
+        
+        for obs in observations:
+            val = obs['value']
+            if val == '.': continue
+            dates.append(obs['date'])
+            values.append(float(val))
+            
+        return {'dates': dates, 'values': values}
+    except Exception as e:
+        print(f"[History] Error fetching FRED {series_id}: {e}")
+        return None
+
+def get_fred_latest_two(series_id, series_name):
+    """Fetches the latest 2 valid data points from FRED to calculate change"""
+    api_key = os.environ.get("FRED_API_KEY")
+    if not api_key:
+        print("FRED_API_KEY missing")
+        return None
+        
+    url = "https://api.stlouisfed.org/fred/series/observations"
+    params = {
+        "series_id": series_id,
+        "api_key": api_key,
+        "file_type": "json",
+        "sort_order": "desc",
+        "limit": 10  # Fetch more to handle missing dates ('.')
     }
     
-    # Auto-Rollover Check for Non-Realtime Data
-    snapshot['foreign_reserves'] = check_date_rollover(snapshot['foreign_reserves'])
-    snapshot['foreign_bond'] = check_date_rollover(snapshot['foreign_bond'])
-    
-    # Attempt Live Fetch
-    # DXY
-    dxy_data = get_ticker_data('DX-Y.NYB')
-    if dxy_data:
-        snapshot['dxy'] = dxy_data
+    try:
+        res = requests.get(url, params=params, timeout=10)
+        res.raise_for_status()
+        data = res.json()
         
-    # USD/KRW
-    usd_krw_data = get_ticker_data('KRW=X')
-    if usd_krw_data:
-        snapshot['usd_krw'] = usd_krw_data
+        observations = data.get("observations", [])
+        valid_obs = [obs for obs in observations if obs["value"] != "."]
         
-    return snapshot
+        if len(valid_obs) < 1:
+            return None
+            
+        current_val = float(valid_obs[0]["value"])
+        change_val = 0.0
+        change_pct = 0.0
+        
+        if len(valid_obs) >= 2:
+            prev_val = float(valid_obs[1]["value"])
+            change_val = current_val - prev_val
+            if prev_val != 0:
+                change_pct = (change_val / prev_val) * 100
+                
+        # Format
+        val_str = f"{current_val:.2f}"
+        
+        # Determine sign
+        sign = ""
+        if change_val > 0: sign = "+"
+        
+        change_str = f"{sign}{change_val:.2f}"
+        pct_str = f"{sign}{change_pct:.2f}%"
+        
+        return {
+            "value": val_str,
+            "change": change_str,
+            "percent": pct_str
+        }
+        
+    except Exception as e:
+        print(f"Error fetching FRED {series_id}: {e}")
+        return None
 
-# Update Economy Data with Rollover Logic
-def get_economy_data():
-    # Latest Official Data (As of Dec 6, 2025)
-    data = {
-        'cci': {"value": "88.7", "change": "-6.8", "date": "2025-11-25", "next_date": "2025-12-23"},
-        'pmi': {"value": "48.2", "change": "-0.3", "date": "2025-12-01", "next_date": "2026-01-02"},
-        'unemployment': {"value": "4.4%", "change": "+0.0%", "date": "2025-11-20", "next_date": "2025-12-16"},
-        'non_farm': {"value": "119K", "change": "+12K", "date": "2025-11-20", "next_date": "2025-12-16"}
-    }
+
+def get_all_history_data():
+    """
+    Fetches 1-year history for all charts.
+    Returns a dict keyed by chart_id: { 'sp_chart': { dates:[], values:[] }, ... }
+    """
+    print("[History] Fetching all history data...")
+    result = {}
     
-    for k, v in data.items():
-        data[k] = check_date_rollover(v)
+    # 1. Stocks (yfinance)
+    # IDs: sp_chart, dow_chart, nasdaq_chart
+    # Tickers: ES=F, YM=F, NQ=F
+    
+    sp = get_history_values_yf("ES=F")
+    if sp: result['sp_chart'] = sp
+    
+    dow = get_history_values_yf("YM=F")
+    if dow: result['dow_chart'] = dow
         
-    return data
+    nasdaq = get_history_values_yf("NQ=F")
+    if nasdaq: result['nasdaq_chart'] = nasdaq
+    
+    # 2. Economy (FRED)
+    # IDs: cci_chart, unem_chart
+    # Series: UMCSENT, UNRATE
+    
+    cci = get_history_values_fred("UMCSENT")
+    if cci: result['cci_chart'] = cci
+        
+    unem = get_history_values_fred("UNRATE")
+    if unem: result['unem_chart'] = unem
+        
+    # 3. Rates (FRED)
+    # IDs: us10_chart, us2_chart, spread_chart
+    # Series: DGS10, DGS2, T10Y2Y
+    
+    us10 = get_history_values_fred("DGS10")
+    if us10: result['us10_chart'] = us10
+        
+    us2 = get_history_values_fred("DGS2")
+    if us2: result['us2_chart'] = us2
+        
+    spread = get_history_values_fred("T10Y2Y")
+    if spread: result['spread_chart'] = spread
+        
+    # 4. Exchange (yfinance)
+    # IDs: dxy_chart, krw_chart
+    # Tickers: DX-Y.NYB, KRW=X
+    
+    dxy = get_history_values_yf("DX-Y.NYB")
+    if dxy: result['dxy_chart'] = dxy
+        
+    krw = get_history_values_yf("KRW=X")
+    if krw: result['krw_chart'] = krw
+    
+    print(f"[History] Fetched {len(result)} charts.")
+    return result
+

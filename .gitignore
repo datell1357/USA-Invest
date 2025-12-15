@@ -1,13 +1,39 @@
- 
-# Python files to ignore
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.venv/
+env/
+venv/
 
-# Operating System files
+# Environment Variables
+.env
+
+# OS
 .DS_Store
 Thumbs.db
 
-# Local development files to ignore
+# IDE
+.vscode/
+.idea/
+
+# Backend - Test & Debug Scripts
+backend/test_*.py
+backend/*_test.py
+backend/check_*.py
+backend/debug_*.py
+backend/dump_*.py
+backend/find_*.py
+backend/inspect_*.py
+
+# Artifacts & Logs
+spread_history_log.md
+backend/walkthrough.md
+*.log
+
+# Local Execution
 run_server.bat
+
+# Misc
+test2/
