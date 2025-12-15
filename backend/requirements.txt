@@ -6,3 +6,5 @@ requests
 urllib3>=1.26.18
 numpy
 apscheduler
+fear-and-greed
+python-dotenv
