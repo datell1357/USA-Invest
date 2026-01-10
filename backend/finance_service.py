@@ -224,11 +224,32 @@ def get_daily_rates():
     """Fetches official rates via Investing.com Crawling (Daily job)"""
     result = {}
     
-    # 1. Fed Funds Rate (Decision)
-    fed = crawler_service.fetch_investing_calendar_actual(
-        'https://kr.investing.com/economic-calendar/interest-rate-decision-168', 168, 'FedRate'
-    )
-    if fed: result['fed_rate'] = fed
+    # 1. Fed Funds Rate (Try Investing.com first, fallback to FRED)
+    fed = None
+    try:
+        # Try Investing.com (User requested)
+        fed = crawler_service.fetch_investing_calendar_actual(
+            'https://kr.investing.com/economic-calendar/interest-rate-decision-168', 168, 'FedRate'
+        )
+        if fed:
+            result['fed_rate'] = fed
+            print("[JOB] Successfully updated Fed Rate via Investing.com")
+    except Exception as e:
+        print(f"[JOB] Investing.com crawl failed: {e}")
+
+    # Fallback to FRED if Investing.com failed
+    if not fed:
+        try:
+            fed_fred = get_fred_data('FEDFUNDS', label_type="percent")
+            if fed_fred:
+                result['fed_rate'] = fed_fred
+                print("[JOB] Successfully updated Fed Rate via FRED (Fallback)")
+            else:
+                print("[JOB] Failed to fetch Fed Rate from both sources")
+        except Exception as e:
+            print(f"[JOB] Error during Fed Rate fallback: {e}")
+
+
     
     # 2. SOFR (NY Fed API)
     sofr = crawler_service.fetch_ny_fed_sofr()
