@@ -8,6 +8,7 @@ import finance_service
 from fastapi.staticfiles import StaticFiles
 import os
 import sys
+import time
 from dotenv import load_dotenv
 
 # Load .env
@@ -162,20 +163,42 @@ def api_timer():
 # Startup Jobs Wrapper
 def run_startup_jobs():
     print("[Startup] Executing initial data fetch...")
+    start_time = time.time()
     try:
+        print("[Startup] 1/8: Realtime Stocks...")
         update_realtime_stocks_job()
-        update_realtime_rates_job()
-        update_realtime_exchange_job()
+        time.sleep(2)
         
+        print("[Startup] 2/8: Realtime Rates...")
+        update_realtime_rates_job()
+        time.sleep(2)
+        
+        print("[Startup] 3/8: Realtime Exchange...")
+        update_realtime_exchange_job()
+        time.sleep(2)
+        
+        print("[Startup] 4/8: Daily Stocks...")
         update_daily_stocks_job()
+        time.sleep(2)
+        
+        print("[Startup] 5/8: Daily Rates...")
         update_daily_rates_job()
+        time.sleep(2)
+        
+        print("[Startup] 6/8: Daily Exchange...")
         update_daily_exchange_job()
+        time.sleep(2)
+        
+        print("[Startup] 7/8: Daily Economy...")
         update_daily_economy_job()
+        time.sleep(2)
         
         # Fetch history on startup
+        print("[Startup] 8/8: History Data (Heavy Job)...")
         update_history_job()
         
-        print("[Startup] Initial data fetch completed.")
+        elapsed = time.time() - start_time
+        print(f"[Startup] Initial data fetch completed in {elapsed:.2f} seconds.")
     except Exception as e:
         print(f"[Startup] Error during initial fetch: {e}")
 

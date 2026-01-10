@@ -1,6 +1,7 @@
 import yfinance as yf
 import requests
 import os
+import time
 from datetime import datetime, timedelta
 import crawler_service
 import FinanceDataReader as fdr
@@ -472,58 +473,48 @@ def get_fred_latest_two(series_id, series_name):
 
 def get_all_history_data():
     """
-    Fetches 1-year history for all charts.
-    Returns a dict keyed by chart_id: { 'sp_chart': { dates:[], values:[] }, ... }
+    Fetches 1-year history for all charts sequentially with delays to reduce memory pressure.
     """
-    print("[History] Fetching all history data...")
+    print("[History] Starting sequential fetch of all history data...")
     result = {}
     
-    # 1. Stocks (yfinance)
-    # IDs: sp_chart, dow_chart, nasdaq_chart
-    # Tickers: ES=F, YM=F, NQ=F
+    # Define tasks to fetch
+    tasks = [
+        # 1. Stocks (yfinance)
+        ("sp_chart", "ES=F", "yf"),
+        ("dow_chart", "YM=F", "yf"),
+        ("nasdaq_chart", "NQ=F", "yf"),
+        # 2. Economy (FRED)
+        ("cci_chart", "UMCSENT", "fred"),
+        ("unem_chart", "UNRATE", "fred"),
+        # 3. Rates (FRED)
+        ("us10_chart", "DGS10", "fred"),
+        ("us2_chart", "DGS2", "fred"),
+        ("spread_chart", "T10Y2Y", "fred"),
+        # 4. Exchange (yfinance)
+        ("dxy_chart", "DX-Y.NYB", "yf"),
+        ("krw_chart", "KRW=X", "yf"),
+    ]
     
-    sp = get_history_values_yf("ES=F")
-    if sp: result['sp_chart'] = sp
+    for chart_id, ticker_or_id, source in tasks:
+        try:
+            print(f"[History] Fetching {chart_id} ({ticker_or_id}) from {source}...")
+            if source == "yf":
+                data = get_history_values_yf(ticker_or_id)
+            else:
+                data = get_history_values_fred(ticker_or_id)
+                
+            if data:
+                result[chart_id] = data
+                print(f"[History] Success: {chart_id}")
+            else:
+                print(f"[History] Failed to fetch {chart_id}")
+                
+            # Memory safety delay
+            time.sleep(1)
+        except Exception as e:
+            print(f"[History] Unexpected error while fetching {chart_id}: {e}")
     
-    dow = get_history_values_yf("YM=F")
-    if dow: result['dow_chart'] = dow
-        
-    nasdaq = get_history_values_yf("NQ=F")
-    if nasdaq: result['nasdaq_chart'] = nasdaq
-    
-    # 2. Economy (FRED)
-    # IDs: cci_chart, unem_chart
-    # Series: UMCSENT, UNRATE
-    
-    cci = get_history_values_fred("UMCSENT")
-    if cci: result['cci_chart'] = cci
-        
-    unem = get_history_values_fred("UNRATE")
-    if unem: result['unem_chart'] = unem
-        
-    # 3. Rates (FRED)
-    # IDs: us10_chart, us2_chart, spread_chart
-    # Series: DGS10, DGS2, T10Y2Y
-    
-    us10 = get_history_values_fred("DGS10")
-    if us10: result['us10_chart'] = us10
-        
-    us2 = get_history_values_fred("DGS2")
-    if us2: result['us2_chart'] = us2
-        
-    spread = get_history_values_fred("T10Y2Y")
-    if spread: result['spread_chart'] = spread
-        
-    # 4. Exchange (yfinance)
-    # IDs: dxy_chart, krw_chart
-    # Tickers: DX-Y.NYB, KRW=X
-    
-    dxy = get_history_values_yf("DX-Y.NYB")
-    if dxy: result['dxy_chart'] = dxy
-        
-    krw = get_history_values_yf("KRW=X")
-    if krw: result['krw_chart'] = krw
-    
-    print(f"[History] Fetched {len(result)} charts.")
+    print(f"[History] Completed. Fetched {len(result)}/{len(tasks)} charts.")
     return result
 
