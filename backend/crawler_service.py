@@ -220,8 +220,13 @@ def fetch_indexergo_data(url, name="IndexerGo"):
     """
     headers = {
         "User-Agent": random.choice(USER_AGENTS),
-        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer": "https://www.google.com/",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1"
     }
+
 
     try:
         response = requests.get(url, headers=headers, timeout=10)

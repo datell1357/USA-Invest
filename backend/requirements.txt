@@ -11,3 +11,5 @@ python-dotenv
 finance-datareader
 beautifulsoup4
 pykrx
+setuptools
+

@@ -10,16 +10,19 @@
 2. **의존성 결여**: `requirements.txt`에 `pykrx`가 누락되어 `ImportError`가 발생하고 있으나, 이는 139 에러의 직접적 원인이라기보다 시스템 불안정 요인으로 작용.
 3. **네이티브 라이브러리 충돌**: `yfinance`나 `pandas`의 C-extension이 특정 데이터 처리 중 메모리 접근 오류를 일으켰을 가능성.
 
-## 조치 계획 (Proposed Solutions)
-- [ ] **Step 1: 의존성 해결**
-    - `backend/requirements.txt`에 `pykrx` 추가.
-- [ ] **Step 2: Startup Job 부하 분산**
-    - `run_startup_jobs` 내에서 각 데이터 수집 함수 사이에 `time.sleep(2)` 등의 딜레이를 추가하여 메모리 스파이크 방지.
-- [ ] **Step 3: History Job 최적화**
-    - 모든 차트 데이터를 한꺼번에 가져오는 대신, 하나씩 순차적으로 가져와 캐시에 업데이트하도록 변경.
-    - `yfinance` 호출 시 `threads=False` 설정 고려.
-- [ ] **Step 4: 로깅 강화**
-    - 각 단계의 시작과 끝을 기록하는 로그를 추가하여 정확한 크래시 지점 파악.
+## 이슈 2: 하이일드 및 외국인보유채권 데이터 누락
+- **현상**: 대시보드에서 '하이일드 스프레드'와 '외국인 주식보유' 항목이 `...`으로 표시됨.
+- **로그 증상**:
+    - `[Crawler] Failed to fetch HighYield: Status 403`
+    - `Error fetching KRX data: No module named 'pkg_resources'`
+
+## 원인 분석 (이슈 2)
+1. **IndexerGo 403 에러**: 접속 시도 시 보안 필터링에 의해 크롤링이 차단됨. 일반적인 브라우저 헤더 정보가 부족하여 발생.
+2. **pykrx pkg_resources 에러**: `pykrx` 라이브러리가 내부적으로 사용하는 `pkg_resources`가 최신 Python 환경(setuptools 미설치)에서 누락되어 발생.
+
+## 조치 사항 (이슈 2)
+1. **헤더 보완**: `crawler_service.py`의 `fetch_indexergo_data` 함수에 `Referer`, `Accept` 등 표준 헤더를 대거 추가하여 우회.
+2. **의존성 추가**: `requirements.txt`에 `setuptools`를 명시적으로 추가하여 `pkg_resources` 누락 문제 해결.
 
 ## 조치 결과
 1. **의존성 해결**: `backend/requirements.txt`에 `pykrx` 추가 완료.
