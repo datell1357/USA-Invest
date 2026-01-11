@@ -179,7 +179,11 @@ def get_daily_stocks():
             print("[JOB] IndexerGo High Yield failed, falling back to FRED")
             fred_hy = get_fred_data('BAMLH0A0HYM2', label_type="value")
             if fred_hy:
+                # Add dynamic URL for fallback
+                fred_hy['url'] = "https://fred.stlouisfed.org/series/BAMLH0A0HYM2"
                 result['high_yield'] = fred_hy
+                print("[JOB] Successfully updated High Yield via FRED (Dynamic URL set)")
+
     except Exception as e:
         print(f"[JOB] Error updating High Yield: {e}")
 
@@ -247,14 +251,19 @@ def get_daily_rates():
             result['fed_rate'] = fed_inv
             print("[JOB] Successfully updated Fed Rate via Investing.com")
         else:
-            # 1-2. Fallback to FRED API
-            print("[JOB] Investing.com Fed Rate failed, falling back to FRED")
-            fed_fred = get_fred_data('FEDFUNDS', label_type="percent")
+            # 1-2. Fallback to FRED API (Daily Effective Federal Funds Rate)
+            print("[JOB] Investing.com Fed Rate failed, falling back to FRED (DFF)")
+            fed_fred = get_fred_data('DFF', label_type="percent")
             if fed_fred:
+                # Add dynamic URL for fallback to Daily Series
+                fed_fred['url'] = "https://fred.stlouisfed.org/series/DFF"
                 # If Investing.com provided next_date but no value, merge them
                 if fed_inv and fed_inv.get('next_date'):
                     fed_fred['next_date'] = fed_inv['next_date']
                 result['fed_rate'] = fed_fred
+                print("[JOB] Successfully updated Fed Rate via FRED DFF (Dynamic URL set)")
+
+
     except Exception as e:
         print(f"[JOB] Error during Fed Rate recovery: {e}")
 
@@ -273,11 +282,12 @@ def get_daily_rates():
     )
     if jp_rate: result['jp_policy'] = jp_rate
     
-    # 4. Korea Base Rate (Decision)
+    # 4. Korea Base Rate (Decision) - Corrected ID 473
     kr_rate = crawler_service.fetch_investing_calendar_actual(
-        'https://kr.investing.com/economic-calendar/south-korea-interest-rate-decision-283', 283, 'BOKRate'
+        'https://kr.investing.com/economic-calendar/south-korea-interest-rate-decision-473', 473, 'BOKRate'
     )
     if kr_rate: result['kr_base'] = kr_rate
+
     
     return result
 

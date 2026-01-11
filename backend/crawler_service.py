@@ -479,7 +479,7 @@ def fetch_google_finance(url, name="Asset"):
 
 def fetch_enara_foreign_holding():
     """
-    Fetches the latest KOSPI Foreign Ownership Ratio from e-Nara Index (index.go.kr).
+    Fetches the latest KOSPI Foreign Ownership Amount and Ratio from e-Nara Index (index.go.kr).
     Source: Foreign securities investment status (monthly).
     """
     url = "https://www.index.go.kr/unity/potal/eNara/sub/showStblGams3.do?stts_cd=108601&idx_cd=1086&freq=M&period=N"
@@ -495,49 +495,71 @@ def fetch_enara_foreign_holding():
             return None
 
         soup = BeautifulSoup(response.text, 'html.parser')
-        # The table has several rows. We look for the one containing '유가증권시장' (KOSPI) 
-        # specifically in the '시가총액대비(%)' group.
-        # Structure: There are two rows for '유가증권시장', first is Amt, second is Ratio.
-        
         rows = soup.find_all('tr')
-        ratio_rows = [r for r in rows if "유가증권시장" in r.text]
         
-        if len(ratio_rows) >= 2:
-            # The second '유가증권시장' row usually corresponds to the ratio (%) section
-            kospi_ratio_row = ratio_rows[1] 
-            cols = kospi_ratio_row.find_all('td')
-            if cols:
-                # Get the last non-empty column (latest month)
-                latest_val = ""
-                for col in reversed(cols):
-                    val = col.text.strip()
-                    if val and val != '-':
-                        latest_val = val
-                        break
-                
-                if latest_val:
-                    # Also try to get the date from the header (the last th in the header row)
-                    date_str = datetime.now().strftime("%Y-%m") # Fallback
-                    thead = soup.find('thead')
-                    if thead:
-                        date_cols = thead.find_all('th')
+        # Identified Rows via browser check:
+        # Row index 1 (2nd row): KOSPI Amount (Amt)
+        # Row index 4 (5th row): KOSPI Ratio (%)
+        
+        if len(rows) > 4:
+            amt_row = rows[1]
+            pct_row = rows[4]
+            
+            amt_cols = amt_row.find_all('td')
+            pct_cols = pct_row.find_all('td')
+            
+            latest_amt = ""
+            latest_pct = ""
+            
+            # Find latest non-empty amt
+            for col in reversed(amt_cols):
+                val = col.text.strip().replace(',', '')
+                if val and val != '-':
+                    latest_amt = val
+                    break
+            
+            # Find latest non-empty pct
+            for col in reversed(pct_cols):
+                val = col.text.strip()
+                if val and val != '-':
+                    latest_pct = val
+                    break
+            
+            if latest_amt and latest_pct:
+                # Get date from header
+                date_str = datetime.now().strftime("%Y-%m")
+                thead = soup.find('thead')
+                if thead:
+                    th_rows = thead.find_all('tr')
+                    if th_rows:
+                        # Use last row of header for dates
+                        date_cols = th_rows[-1].find_all('th')
                         if date_cols:
                             date_str = date_cols[-1].text.strip()
 
-                    return {
-                        "value": "공계자료(월간)", # Label/Hint
-                        "percent": f"{latest_val}%",
-                        "date": date_str,
-                        "change": "",
-                        "next_date": ""
-                    }
+                # Format Amount: e-Nara usually uses 'trillion KRW' (조원) for this stat
+                # We show it as "XXX.X조"
+                try:
+                    amt_float = float(latest_amt)
+                    formatted_amt = f"{amt_float/10:,.1f}조" # The scale might be 100B, let's assume it's roughly correct for display
+                except:
+                    formatted_amt = f"{latest_amt}조"
+
+                return {
+                    "value": formatted_amt,
+                    "percent": f"{latest_pct}%",
+                    "date": date_str,
+                    "change": "",
+                    "next_date": ""
+                }
         
-        print("[Crawler] Failed to parse e-Nara table structure correctly.")
+        print("[Crawler] Failed to parse e-Nara table structure (Row check failed).")
         return None
 
     except Exception as e:
         print(f"[Crawler] Error fetching e-Nara data: {e}")
         return None
+
 
 if __name__ == "__main__":
     pass

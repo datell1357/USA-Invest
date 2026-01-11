@@ -367,10 +367,12 @@
         /* Specific Layout Tweaks */
         /* Stocks Tab (7:3) - Taller Cards */
         .grid-7-3 .card {
-            min-height: 320px; 
+            min-height: 320px;
             padding: 1.5rem 1.8rem;
-            justify-content: flex-start; /* Pin header to top */
-            gap: 1.5rem; /* Gap between header and content */
+            justify-content: flex-start;
+            /* Pin header to top */
+            gap: 1.5rem;
+            /* Gap between header and content */
         }
 
         /* Distribute items inside Stocks cards */
@@ -378,12 +380,14 @@
             flex: 1;
             /* Grid container itself just holds columns. Columns need to stretch. */
         }
-        
+
         .grid-7-3 .card .indices-col {
             display: flex;
             flex-direction: column;
-            justify-content: center; /* Center items vertically for equal margins */
-            gap: 26px; /* Exact pixel spacing as requested */
+            justify-content: center;
+            /* Center items vertically for equal margins */
+            gap: 26px;
+            /* Exact pixel spacing as requested */
             height: 100%;
         }
 
@@ -391,9 +395,10 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            justify-content: space-evenly; /* Distribute list items */
+            justify-content: space-evenly;
+            /* Distribute list items */
         }
-        
+
         /* Rates/Exchange Tab (Four Grid) - Compact Cards */
         .four-grid .card {
             min-height: 0;
@@ -446,15 +451,15 @@
             <button class="nav-btn" onclick="switchCategory('rates')">금리</button>
             <button class="nav-btn" onclick="switchCategory('exchange')">환율</button>
         </nav>
-		<div id="refresh-timer" style="
+        <div id="refresh-timer" style="
 			position: absolute;
 			right: 20px;
 			top: 20px;
 			font-size: 0.9rem;
 			color: #94a3b8;
 		">
-    다음 갱신까지: --초
-</div>
+            다음 갱신까지: --초
+        </div>
 
     </header>
 
@@ -463,32 +468,32 @@
     </main>
 
     <script>
-	
-		let nextUpdateTimeMs = null;
-		let timerTriggered = false;
-		
-		async function fetchTimer() {
-			try {
-				const res = await fetch(`${API_BASE_URL.replace('/api/finance', '')}/api/timer`);
-				const data = await res.json();
 
-				if (!data.next_update) return;
+        let nextUpdateTimeMs = null;
+        let timerTriggered = false;
 
-				const now = Date.now();
-				// Backend job might take a moment. If next_update is in past/present, retry.
-				if (data.next_update > now + 2000) { 
-					nextUpdateTimeMs = data.next_update; 
-					timerTriggered = false; // Valid future time received, reset trigger
-				} else {
-					console.log("Waiting for new schedule...", data.next_update, now);
-					// Still old schedule? Retry fetch soon
-					setTimeout(fetchTimer, 2000); 
-				}
-			} catch (e) {
-				console.error("Timer fetch failed", e);
-				setTimeout(fetchTimer, 5000);
-			}
-		}
+        async function fetchTimer() {
+            try {
+                const res = await fetch(`${API_BASE_URL.replace('/api/finance', '')}/api/timer`);
+                const data = await res.json();
+
+                if (!data.next_update) return;
+
+                const now = Date.now();
+                // Backend job might take a moment. If next_update is in past/present, retry.
+                if (data.next_update > now + 2000) {
+                    nextUpdateTimeMs = data.next_update;
+                    timerTriggered = false; // Valid future time received, reset trigger
+                } else {
+                    console.log("Waiting for new schedule...", data.next_update, now);
+                    // Still old schedule? Retry fetch soon
+                    setTimeout(fetchTimer, 2000);
+                }
+            } catch (e) {
+                console.error("Timer fetch failed", e);
+                setTimeout(fetchTimer, 5000);
+            }
+        }
 
         const CATEGORIES = {
             stocks: {
@@ -562,7 +567,8 @@
                         items: [
                             { id: 'kr_10y', label: '10년물', url: 'https://kr.investing.com/rates-bonds/south-korea-10-year-bond-yield' },
                             { id: 'kr_2y', label: '2년물', url: 'https://kr.investing.com/rates-bonds/south-korea-2-year-bond-yield' },
-                            { id: 'kr_base', label: '기준금리', url: 'https://kr.investing.com/economic-calendar/south-korea-interest-rate-decision-283' }
+                            { id: 'kr_base', label: '기준금리', url: 'https://kr.investing.com/economic-calendar/south-korea-interest-rate-decision-473' }
+
                         ]
                     },
                     {
@@ -601,7 +607,7 @@
         };
 
         const API_BASE_URL = 'https://usa-invest.onrender.com/api/finance';
-		//const API_BASE_URL = "http://127.0.0.1:8000/api/finance";
+        //const API_BASE_URL = "http://127.0.0.1:8000/api/finance";
 
 
         let currentCategory = 'stocks';
@@ -646,34 +652,34 @@
             }
             renderLayout(cat);
         }
-		
-		let timerRunning = false;
-		
-		function startCountdown() {
-			if (timerRunning) return;
-			timerRunning = true;
 
-			setInterval(() => {
-				if (!nextUpdateTimeMs) return;
+        let timerRunning = false;
 
-				const now = Date.now();
-				const diffSec = Math.max(
-					Math.floor((nextUpdateTimeMs - now) / 1000),
-					0
-				);
+        function startCountdown() {
+            if (timerRunning) return;
+            timerRunning = true;
 
-				const timerEl = document.getElementById("refresh-timer");
-				timerEl.textContent = `다음 갱신까지: ${diffSec}초`;
+            setInterval(() => {
+                if (!nextUpdateTimeMs) return;
 
-				// ✅ 0초 도달 시 단 한 번만 실행
-				if (diffSec === 0 && !timerTriggered) {
-					timerTriggered = true;
+                const now = Date.now();
+                const diffSec = Math.max(
+                    Math.floor((nextUpdateTimeMs - now) / 1000),
+                    0
+                );
 
-					fetchAllData(); // 이미 갱신된 캐시 읽기
-					fetchTimer();   // 다음 next_update 재동기화
-				}
-			}, 1000);
-		}
+                const timerEl = document.getElementById("refresh-timer");
+                timerEl.textContent = `다음 갱신까지: ${diffSec}초`;
+
+                // ✅ 0초 도달 시 단 한 번만 실행
+                if (diffSec === 0 && !timerTriggered) {
+                    timerTriggered = true;
+
+                    fetchAllData(); // 이미 갱신된 캐시 읽기
+                    fetchTimer();   // 다음 next_update 재동기화
+                }
+            }, 1000);
+        }
 
 
 
@@ -747,10 +753,10 @@
             row.className = 'indices-row-3col';
             // Flex layout: Label(Left) - Value(Center) - Change&Pct(Right)
             row.style.display = 'flex';
-            row.style.alignItems = 'center';
-            row.style.justifyContent = 'space-between';
+            row.id = `card-item-${item.id}`;
 
             if (item.url) row.onclick = () => window.open(item.url, '_blank');
+
 
             row.innerHTML = `
                 <div class="idx-name" style="flex:1; text-align:left;">${item.label}</div>
@@ -810,10 +816,12 @@
                 list.className = 'std-list';
                 group.items.forEach(item => {
                     const container = document.createElement('div');
+                    container.id = `card-item-${item.id}`;
                     container.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
                     container.style.paddingBottom = '0.6rem';
                     container.style.marginBottom = '0.6rem';
                     if (item.url) { container.style.cursor = 'pointer'; container.onclick = () => window.open(item.url, '_blank'); }
+
 
                     container.innerHTML = `
                         <div class="std-row" style="display:flex; justify-content:space-between; align-items:center;">
@@ -838,7 +846,9 @@
                 group.items.forEach(item => {
                     const row = document.createElement('div');
                     row.className = 'sentiment-row';
+                    row.id = `card-item-${item.id}`;
                     if (item.url) row.onclick = () => window.open(item.url, '_blank');
+
                     row.innerHTML = `
                         <div class="sentiment-label">${item.label}</div>
                         <div class="sentiment-val-group">
@@ -852,7 +862,9 @@
 
             } else if (group.type === 'val_with_dates') {
                 const item = group.items[0];
+                div.id = `card-item-${item.id}`;
                 if (item.url) { div.style.cursor = 'pointer'; div.onclick = () => window.open(item.url, '_blank'); }
+
                 div.innerHTML = `
                     <div class="sv-top-row">
                         <span class="sv-label">${group.label}</span>
@@ -867,7 +879,9 @@
 
             } else if (group.type === 'val_simple') {
                 const item = group.items[0];
+                div.id = `card-item-${item.id}`;
                 if (item.url) { div.style.cursor = 'pointer'; div.onclick = () => window.open(item.url, '_blank'); }
+
                 div.innerHTML = `
                     <div class="sv-top-row">
                         <span class="sv-label">${group.label}</span>
@@ -877,7 +891,9 @@
                  `;
             } else if (group.type === 'large_center') {
                 const item = group.items[0];
+                div.id = `card-item-${item.id}`;
                 if (item.url) { div.style.cursor = 'pointer'; div.onclick = () => window.open(item.url, '_blank'); }
+
                 div.innerHTML = `
                     <div class="large-center-box">
                         <span style="font-size:1.2rem; color:#94a3b8; margin-bottom:0.8rem">${item.label}</span>
@@ -913,6 +929,14 @@
                 g.items.forEach(item => {
                     const d = data[item.id];
                     if (!d) return;
+
+                    // Update Dynamic URL if provided by backend (fallback triggered)
+                    if (d.url) {
+                        const clickable = document.getElementById(`card-item-${item.id}`);
+                        if (clickable) {
+                            clickable.onclick = () => window.open(d.url, '_blank');
+                        }
+                    }
 
                     const valEl = document.getElementById(`val-${item.id}`);
                     const chEl = document.getElementById(`ch-${item.id}`);
@@ -1003,19 +1027,23 @@
                         }
                     }
 
-                    // Special Logic for KRX Foreign Holding (foreign_bond)
+                    // Special Logic for e-Nara Foreign Holding (foreign_bond)
                     if (item.id === 'foreign_bond') {
+                        if (valEl) {
+                            valEl.style.fontSize = '1.0rem'; // Adjust for Amount+Unit
+                        }
                         if (chEl) {
                             chEl.innerText = d.percent;
                             chEl.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
                             chEl.style.color = '#fff';
-                            chEl.classList.remove('bg-up', 'bg-down', 'c-up', 'c-down');
+                            chEl.classList.remove('bg-up', 'bg-down', 'c-up', 'c-down', 'loading-pulse');
                         }
-                        // Hide 'Next' date
-                         if (nextEl && nextEl.parentElement) {
+                        // Hide 'Next' date as e-Nara is manual/monthly
+                        if (nextEl && nextEl.parentElement) {
                             nextEl.parentElement.style.display = 'none';
                         }
                     }
+
                 });
             });
 
@@ -1079,14 +1107,14 @@
             }
         }
 
-        
+
         // ... (Charts)
-        
+
         function initChart(ctx, id, currentVal) {
-             // Default Empty
+            // Default Empty
             let values = [];
             let labels = [];
-            
+
             // 1. Get History
             if (HISTORY_DATA[id]) {
                 const h = HISTORY_DATA[id];
@@ -1095,20 +1123,20 @@
                     labels = [...h.dates];
                 }
             }
-            
+
             // 2. Append Current Value (Realtime connection)
             // Only if currentVal is valid
             if (currentVal !== null && !isNaN(currentVal)) {
-                 // Check last date to avoid dups? 
-                 // Simple logic: Just append "Now" or Today
-                 values.push(currentVal);
-                 labels.push("Current");
+                // Check last date to avoid dups? 
+                // Simple logic: Just append "Now" or Today
+                values.push(currentVal);
+                labels.push("Current");
             }
-            
+
             // Fallback if no data
             if (values.length === 0) {
-                 values = [currentVal || 100, currentVal || 100];
-                 labels = ["Start", "End"];
+                values = [currentVal || 100, currentVal || 100];
+                labels = ["Start", "End"];
             }
 
             // Determine Color
@@ -1119,7 +1147,7 @@
 
             // Simplify Labels (Show only start/end or every Nth?)
             // Chart.js handles this automatically usually, but let's hide x-grid
-            
+
 
             // Format Labels: Convert YYYY-MM-DD to YY.MM (e.g., 24.12)
             const formattedLabels = labels.map(l => {
@@ -1160,12 +1188,12 @@
                         x: {
                             display: true, // Show X Axis
                             grid: { display: false },
-                            ticks: { 
-                                color: '#94a3b8', 
+                            ticks: {
+                                color: '#94a3b8',
                                 font: { size: 10 },
                                 maxRotation: 0,
                                 autoSkip: false, // Show All Labels
-                                maxTicksLimit: 15 
+                                maxTicksLimit: 15
                             }
                         },
 
