@@ -477,5 +477,68 @@ def fetch_google_finance(url, name="Asset"):
         print(f"[Crawler] Error Google Finance {name}: {e}")
         return None
 
+def fetch_enara_foreign_holding():
+    """
+    Fetches the latest KOSPI Foreign Ownership Ratio from e-Nara Index (index.go.kr).
+    Source: Foreign securities investment status (monthly).
+    """
+    url = "https://www.index.go.kr/unity/potal/eNara/sub/showStblGams3.do?stts_cd=108601&idx_cd=1086&freq=M&period=N"
+    headers = {
+        "User-Agent": random.choice(USER_AGENTS),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Referer": "https://www.index.go.kr/"
+    }
+
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code != 200:
+            return None
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+        # The table has several rows. We look for the one containing '유가증권시장' (KOSPI) 
+        # specifically in the '시가총액대비(%)' group.
+        # Structure: There are two rows for '유가증권시장', first is Amt, second is Ratio.
+        
+        rows = soup.find_all('tr')
+        ratio_rows = [r for r in rows if "유가증권시장" in r.text]
+        
+        if len(ratio_rows) >= 2:
+            # The second '유가증권시장' row usually corresponds to the ratio (%) section
+            kospi_ratio_row = ratio_rows[1] 
+            cols = kospi_ratio_row.find_all('td')
+            if cols:
+                # Get the last non-empty column (latest month)
+                latest_val = ""
+                for col in reversed(cols):
+                    val = col.text.strip()
+                    if val and val != '-':
+                        latest_val = val
+                        break
+                
+                if latest_val:
+                    # Also try to get the date from the header (the last th in the header row)
+                    date_str = datetime.now().strftime("%Y-%m") # Fallback
+                    thead = soup.find('thead')
+                    if thead:
+                        date_cols = thead.find_all('th')
+                        if date_cols:
+                            date_str = date_cols[-1].text.strip()
+
+                    return {
+                        "value": "공계자료(월간)", # Label/Hint
+                        "percent": f"{latest_val}%",
+                        "date": date_str,
+                        "change": "",
+                        "next_date": ""
+                    }
+        
+        print("[Crawler] Failed to parse e-Nara table structure correctly.")
+        return None
+
+    except Exception as e:
+        print(f"[Crawler] Error fetching e-Nara data: {e}")
+        return None
+
 if __name__ == "__main__":
     pass
+

@@ -165,12 +165,23 @@ def get_daily_stocks():
     """Fetches daily stock-related data via Crawler (Daily job)"""
     result = {}
     
-    # High Yield Spread (IndexerGo)
-    high_yield = crawler_service.fetch_indexergo_data(
-        'https://www.indexergo.com/series/?frq=M&idxDetail=13404', 'HighYield'
-    )
-    if high_yield:
-         result['high_yield'] = high_yield
+    # High Yield Spread (Prioritize FRED for stability)
+    try:
+        # BAMLH0A0HYM2: ICE BofA US High Yield Index Option-Adjusted Spread
+        fred_hy = get_fred_data('BAMLH0A0HYM2', label_type="value")
+        if fred_hy:
+            result['high_yield'] = fred_hy
+            print("[JOB] Successfully updated High Yield via FRED")
+        else:
+            # Fallback to IndexerGo
+            print("[JOB] FRED High Yield failed, falling back to IndexerGo")
+            hy = crawler_service.fetch_indexergo_data(
+                'https://www.indexergo.com/series/?frq=M&idxDetail=13404', 'HighYield'
+            )
+            if hy: result['high_yield'] = hy
+    except Exception as e:
+        print(f"[JOB] Error updating High Yield: {e}")
+
         
     return result
 
@@ -224,30 +235,32 @@ def get_daily_rates():
     """Fetches official rates via Investing.com Crawling (Daily job)"""
     result = {}
     
-    # 1. Fed Funds Rate (Try Investing.com first, fallback to FRED)
-    fed = None
+    # 1. Fed Funds Rate (Hybrid: FRED for value, Investing.com for dates)
     try:
-        # Try Investing.com (User requested)
-        fed = crawler_service.fetch_investing_calendar_actual(
-            'https://kr.investing.com/economic-calendar/interest-rate-decision-168', 168, 'FedRate'
-        )
+        # 1-1. Get Stable Value from FRED
+        fed = get_fred_data('FEDFUNDS', label_type="percent")
         if fed:
+            # 1-2. Supplement with Calendar dates from Investing.com (if possible)
+            try:
+                fed_inv = crawler_service.fetch_investing_calendar_actual(
+                    'https://kr.investing.com/economic-calendar/interest-rate-decision-168', 168, 'FedRate'
+                )
+                if fed_inv and fed_inv.get('next_date'):
+                    fed['next_date'] = fed_inv['next_date']
+                    # Keep Investing.com's release date if it's more precise than FRED's month-based date
+                    if fed_inv.get('date'):
+                        fed['date'] = fed_inv['date']
+            except Exception as inv_e:
+                print(f"[JOB] Investing.com supplemental crawl failed: {inv_e}")
+            
             result['fed_rate'] = fed
-            print("[JOB] Successfully updated Fed Rate via Investing.com")
+            print("[JOB] Successfully updated Fed Rate via Hybrid (FRED+Investing)")
+        else:
+            print("[JOB] Failed to fetch Fed Rate even from FRED")
     except Exception as e:
-        print(f"[JOB] Investing.com crawl failed: {e}")
+        print(f"[JOB] Error during Fed Rate Hybrid update: {e}")
 
-    # Fallback to FRED if Investing.com failed
-    if not fed:
-        try:
-            fed_fred = get_fred_data('FEDFUNDS', label_type="percent")
-            if fed_fred:
-                result['fed_rate'] = fed_fred
-                print("[JOB] Successfully updated Fed Rate via FRED (Fallback)")
-            else:
-                print("[JOB] Failed to fetch Fed Rate from both sources")
-        except Exception as e:
-            print(f"[JOB] Error during Fed Rate fallback: {e}")
+
 
 
     
@@ -299,33 +312,31 @@ def get_daily_exchange():
         result['foreign_reserves'] = res
         
     # Foreign Holding (KRX) via Pykrx
+    # KRX Foreign Stock Holding (Switched to e-Nara Index Official Monthly Data)
     try:
-        # Try importing based on execution context
-        try:
-            import backend.crawler.krx_crawler as krx_crawler
-        except ImportError:
-            import crawler.krx_crawler as krx_crawler
-            
-        krx_data = krx_crawler.get_foreign_holding_data()
-        if krx_data:
-            # Map to Frontend expected format
-            # value: Market Cap (won), percent: "31.82%", date: YYYY-MM-DD
-            # Using 'foreign_bond' key to replace existing card
-            
-            # Convert Won to Trillion (조) for display or keep raw? 
-            # Frontend usually handles raw strings, but let's format it nicely.
-            # Value is float.
-            val_trillion = krx_data['value'] / 1000000000000 # 10^12
-            
-            result['foreign_bond'] = {
-                "value": f"{val_trillion:.1f}조",
-                "change": "", # No change value (User request)
-                "percent": krx_data['percent'], # "31.82%"
-                "date": krx_data['date'],
-                "next_date": "" # User: No next date
-            }
+        # Fetching official stats from Index.go.kr
+        enara_data = crawler_service.fetch_enara_foreign_holding()
+        if enara_data:
+             result['foreign_bond'] = enara_data
+             print("[JOB] Successfully updated Foreign Holding via e-Nara Index")
+        else:
+             print("[JOB] e-Nara Foreign Holding failed, checking fallback...")
+             # Legacy Fallback (Likely to fail but kept as last resort)
+             import backend.crawler.krx_crawler as krx_crawler
+             krx_data = krx_crawler.get_foreign_holding_data()
+             if krx_data:
+                val_trillion = krx_data['value'] / 1000000000000
+                result['foreign_bond'] = {
+                    "value": f"{val_trillion:.1f}조",
+                    "change": "",
+                    "percent": krx_data['percent'],
+                    "date": krx_data['date'],
+                    "next_date": ""
+                }
     except Exception as e:
-        print(f"Error fetching KRX data: {e}")
+        print(f"[JOB] Error updating Foreign Bond data: {e}")
+
+
 
     return result
 
