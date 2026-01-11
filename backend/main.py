@@ -211,11 +211,8 @@ def run_startup_jobs():
         print("[Startup] 7/8: Daily Economy...")
         update_daily_economy_job()
         log_category_data("economy")
-        time.sleep(2)
-        
-        # Fetch history on startup
-        print("[Startup] 8/8: History Data (Charts)...")
-        update_history_job()
+        # History Data move to separate delayed job to reduce startup load
+
         if CACHE["history"]:
             print(f"  [Data] History: Loaded {len(CACHE['history'])} indicators.")
         
@@ -227,9 +224,12 @@ def run_startup_jobs():
 
 @app.on_event("startup")
 def start_scheduler():
-    # Run all jobs once on startup to populate cache (Sequentially in a single thread to avoid overload)
-    # Schedule the startup job to run immediately
+    # Run core data jobs once on startup to populate cache
     scheduler.add_job(run_startup_jobs)
+    
+    # Run heavy History job with 1 minute delay to avoid startup bottleneck
+    scheduler.add_job(update_history_job, next_run_time=datetime.now() + timedelta(minutes=1))
+
     
     # 30초: Stocks Realtime
     scheduler.add_job(update_realtime_stocks_job, "interval", seconds=30)
