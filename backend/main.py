@@ -164,43 +164,66 @@ def api_timer():
 def run_startup_jobs():
     print("[Startup] Executing initial data fetch...")
     start_time = time.time()
+    
+    def log_category_data(category):
+        data = CACHE.get(category, {})
+        if data:
+            print(f"  [Data] {category.capitalize()}:")
+            for key, val in data.items():
+                if isinstance(val, dict):
+                    v = val.get('value', 'N/A')
+                    p = val.get('percent', '')
+                    print(f"    - {key}: {v} ({p})")
+        else:
+            print(f"  [Warn] No data found in category '{category}'")
+
     try:
         print("[Startup] 1/8: Realtime Stocks...")
         update_realtime_stocks_job()
+        log_category_data("stocks")
         time.sleep(2)
         
         print("[Startup] 2/8: Realtime Rates...")
         update_realtime_rates_job()
+        log_category_data("rates")
         time.sleep(2)
         
         print("[Startup] 3/8: Realtime Exchange...")
         update_realtime_exchange_job()
+        log_category_data("exchange")
         time.sleep(2)
         
-        print("[Startup] 4/8: Daily Stocks...")
+        print("[Startup] 4/8: Daily Stocks (High Yield, etc)...")
         update_daily_stocks_job()
+        log_category_data("stocks") # Updated again
         time.sleep(2)
         
-        print("[Startup] 5/8: Daily Rates...")
+        print("[Startup] 5/8: Daily Rates (Fed Rate, etc)...")
         update_daily_rates_job()
+        log_category_data("rates") # Updated again
         time.sleep(2)
         
-        print("[Startup] 6/8: Daily Exchange...")
+        print("[Startup] 6/8: Daily Exchange (Reserves, etc)...")
         update_daily_exchange_job()
+        log_category_data("exchange") # Updated again
         time.sleep(2)
         
         print("[Startup] 7/8: Daily Economy...")
         update_daily_economy_job()
+        log_category_data("economy")
         time.sleep(2)
         
         # Fetch history on startup
-        print("[Startup] 8/8: History Data (Heavy Job)...")
+        print("[Startup] 8/8: History Data (Charts)...")
         update_history_job()
+        if CACHE["history"]:
+            print(f"  [Data] History: Loaded {len(CACHE['history'])} indicators.")
         
         elapsed = time.time() - start_time
         print(f"[Startup] Initial data fetch completed in {elapsed:.2f} seconds.")
     except Exception as e:
         print(f"[Startup] Error during initial fetch: {e}")
+
 
 @app.on_event("startup")
 def start_scheduler():

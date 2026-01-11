@@ -165,22 +165,24 @@ def get_daily_stocks():
     """Fetches daily stock-related data via Crawler (Daily job)"""
     result = {}
     
-    # High Yield Spread (Prioritize FRED for stability)
+    # High Yield Spread (Restore Original: IndexerGo first)
     try:
-        # BAMLH0A0HYM2: ICE BofA US High Yield Index Option-Adjusted Spread
-        fred_hy = get_fred_data('BAMLH0A0HYM2', label_type="value")
-        if fred_hy:
-            result['high_yield'] = fred_hy
-            print("[JOB] Successfully updated High Yield via FRED")
+        # Try IndexerGo (Original primary)
+        hy = crawler_service.fetch_indexergo_data(
+            'https://www.indexergo.com/series/?frq=M&idxDetail=13404', 'HighYield'
+        )
+        if hy:
+            result['high_yield'] = hy
+            print("[JOB] Successfully updated High Yield via IndexerGo")
         else:
-            # Fallback to IndexerGo
-            print("[JOB] FRED High Yield failed, falling back to IndexerGo")
-            hy = crawler_service.fetch_indexergo_data(
-                'https://www.indexergo.com/series/?frq=M&idxDetail=13404', 'HighYield'
-            )
-            if hy: result['high_yield'] = hy
+            # Fallback to FRED
+            print("[JOB] IndexerGo High Yield failed, falling back to FRED")
+            fred_hy = get_fred_data('BAMLH0A0HYM2', label_type="value")
+            if fred_hy:
+                result['high_yield'] = fred_hy
     except Exception as e:
         print(f"[JOB] Error updating High Yield: {e}")
+
 
         
     return result
@@ -235,30 +237,27 @@ def get_daily_rates():
     """Fetches official rates via Investing.com Crawling (Daily job)"""
     result = {}
     
-    # 1. Fed Funds Rate (Hybrid: FRED for value, Investing.com for dates)
+    # 1. Fed Funds Rate (Restore Original Strategy: Investing.com primary)
     try:
-        # 1-1. Get Stable Value from FRED
-        fed = get_fred_data('FEDFUNDS', label_type="percent")
-        if fed:
-            # 1-2. Supplement with Calendar dates from Investing.com (if possible)
-            try:
-                fed_inv = crawler_service.fetch_investing_calendar_actual(
-                    'https://kr.investing.com/economic-calendar/interest-rate-decision-168', 168, 'FedRate'
-                )
-                if fed_inv and fed_inv.get('next_date'):
-                    fed['next_date'] = fed_inv['next_date']
-                    # Keep Investing.com's release date if it's more precise than FRED's month-based date
-                    if fed_inv.get('date'):
-                        fed['date'] = fed_inv['date']
-            except Exception as inv_e:
-                print(f"[JOB] Investing.com supplemental crawl failed: {inv_e}")
-            
-            result['fed_rate'] = fed
-            print("[JOB] Successfully updated Fed Rate via Hybrid (FRED+Investing)")
+        # 1-1. Try Investing.com Crawling (Original)
+        fed_inv = crawler_service.fetch_investing_calendar_actual(
+            'https://kr.investing.com/economic-calendar/interest-rate-decision-168', 168, 'FedRate'
+        )
+        if fed_inv and fed_inv.get('value'):
+            result['fed_rate'] = fed_inv
+            print("[JOB] Successfully updated Fed Rate via Investing.com")
         else:
-            print("[JOB] Failed to fetch Fed Rate even from FRED")
+            # 1-2. Fallback to FRED API
+            print("[JOB] Investing.com Fed Rate failed, falling back to FRED")
+            fed_fred = get_fred_data('FEDFUNDS', label_type="percent")
+            if fed_fred:
+                # If Investing.com provided next_date but no value, merge them
+                if fed_inv and fed_inv.get('next_date'):
+                    fed_fred['next_date'] = fed_inv['next_date']
+                result['fed_rate'] = fed_fred
     except Exception as e:
-        print(f"[JOB] Error during Fed Rate Hybrid update: {e}")
+        print(f"[JOB] Error during Fed Rate recovery: {e}")
+
 
 
 
