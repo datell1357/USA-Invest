@@ -498,15 +498,40 @@ def fetch_enara_foreign_holding():
         rows = soup.find_all('tr')
         
         # Identified Rows via browser check:
-        # Row index 1 (2nd row): KOSPI Amount (Amt)
-        # Row index 4 (5th row): KOSPI Ratio (%)
+        # e-Nara Index 1086 has a specific structure:
+        # Row 0: Header
+        # Row 1: Header/Category
+        # Row 2: Category Separator (blank or sub-header)
+        # Row 3 (index 2 in tbody usually, but in all tr): FOREIGN_AMT
+        # Row 6 (index 5 in tbody usually): FOREIGN_RATIO
         
-        if len(rows) > 4:
-            amt_row = rows[1]
-            pct_row = rows[4]
+        # Based on raw outerHTML analysis:
+        # Row 0, 1: Header
+        # Row 2 (index 2): '외국인 보유금액' (Total)
+        # Row 3 (index 3): '유가증권시장' (KOSPI Amt) <- Target
+        # Row 4 (index 4): '코스닥시장' (KOSDAQ Amt)
+        # Row 5 (index 5): '시가총액대비(%)' -> '외국인 보유금액' (Total %)
+        # Row 6 (index 6): '유가증권시장' (KOSPI %) <- Target
+        
+        if len(rows) > 6:
+            amt_row = rows[3] # KOSPI Amount (index 3)
+            pct_row = rows[6] # KOSPI Ratio (index 6)
             
+            # Text based verification
+            if '유가증권시장' not in amt_row.text or '유가증권시장' not in pct_row.text:
+                print(f"[Crawler] e-Nara Row text mismatch: {amt_row.text.strip()} / {pct_row.text.strip()}")
+                # Try fallback to text match if index is shifted
+                for idx, r in enumerate(rows):
+                    if '유가증권시장' in r.text:
+                        if '보유금액' in rows[max(0, idx-1)].text or '보유금액' in r.text:
+                             amt_row = r
+                        elif '시가총액' in rows[max(0, idx-1)].text or '시가총액' in r.text:
+                             pct_row = r
+
             amt_cols = amt_row.find_all('td')
             pct_cols = pct_row.find_all('td')
+
+
             
             latest_amt = ""
             latest_pct = ""

@@ -512,50 +512,48 @@ def get_fred_latest_two(series_id, series_name):
         return None
 
 
+def fetch_single_history(ticker_or_id, source):
+    """
+    Fetches history for a single ticker/id from given source.
+    """
+    try:
+        if source == "yf":
+            return get_history_values_yf(ticker_or_id)
+        elif source == "fred":
+            return get_history_values_fred(ticker_or_id)
+        return None
+    except Exception as e:
+        print(f"[History] Error fetching {ticker_or_id}: {e}")
+        return None
+
 def get_all_history_data():
     """
-    Fetches 1-year history for all charts sequentially with delays to reduce memory pressure.
+    Fetches 1-year history for all charts sequentially with delays.
+    Legacy wrapper for startup if needed, but recommended to use individual jobs.
     """
-    print("[History] Starting sequential fetch of all history data...")
+    print("[History] Starting sequential fetch of all history data (legacy wrapper)...")
     result = {}
     
-    # Define tasks to fetch
     tasks = [
-        # 1. Stocks (yfinance)
         ("sp_chart", "ES=F", "yf"),
         ("dow_chart", "YM=F", "yf"),
         ("nasdaq_chart", "NQ=F", "yf"),
-        # 2. Economy (FRED)
         ("cci_chart", "UMCSENT", "fred"),
         ("unem_chart", "UNRATE", "fred"),
-        # 3. Rates (FRED)
         ("us10_chart", "DGS10", "fred"),
         ("us2_chart", "DGS2", "fred"),
         ("spread_chart", "T10Y2Y", "fred"),
-        # 4. Exchange (yfinance)
         ("dxy_chart", "DX-Y.NYB", "yf"),
         ("krw_chart", "KRW=X", "yf"),
     ]
     
     for chart_id, ticker_or_id, source in tasks:
-        try:
-            print(f"[History] Fetching {chart_id} ({ticker_or_id}) from {source}...")
-            if source == "yf":
-                data = get_history_values_yf(ticker_or_id)
-            else:
-                data = get_history_values_fred(ticker_or_id)
-                
-            if data:
-                result[chart_id] = data
-                print(f"[History] Success: {chart_id}")
-            else:
-                print(f"[History] Failed to fetch {chart_id}")
-                
-            # Memory safety delay
-            time.sleep(1)
-        except Exception as e:
-            print(f"[History] Unexpected error while fetching {chart_id}: {e}")
+        data = fetch_single_history(ticker_or_id, source)
+        if data:
+            result[chart_id] = data
+            print(f"[History] Success: {chart_id}")
+        time.sleep(1)
     
-    print(f"[History] Completed. Fetched {len(result)}/{len(tasks)} charts.")
     return result
+
 

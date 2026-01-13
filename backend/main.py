@@ -105,15 +105,32 @@ def update_daily_economy_job():
 
 # --- History Jobs (NEW) ---
 
-def update_history_job():
-    print("[JOB] Updating history data (Daily)")
+# --- History Tasks Definition ---
+HISTORY_TASKS = [
+    ("sp_chart", "ES=F", "yf"),
+    ("dow_chart", "YM=F", "yf"),
+    ("nasdaq_chart", "NQ=F", "yf"),
+    ("cci_chart", "UMCSENT", "fred"),
+    ("unem_chart", "UNRATE", "fred"),
+    ("us10_chart", "DGS10", "fred"),
+    ("us2_chart", "DGS2", "fred"),
+    ("spread_chart", "T10Y2Y", "fred"),
+    ("dxy_chart", "DX-Y.NYB", "yf"),
+    ("krw_chart", "KRW=X", "yf"),
+]
+
+def update_single_history_job(chart_id, ticker, source):
+    """Fetches and updates a single history indicator in CACHE."""
     try:
-        data = finance_service.get_all_history_data()
-        # History replaces entire dict if successful
+        print(f"[JOB] Updating history: {chart_id} ({source})")
+        data = finance_service.fetch_single_history(ticker, source)
         if data:
-            CACHE["history"] = data
+            if "history" not in CACHE:
+                CACHE["history"] = {}
+            CACHE["history"][chart_id] = data
+            print(f"[JOB] Success history: {chart_id}")
     except Exception as e:
-        print(f"[ERROR] update_history_job: {e}")
+        print(f"[ERROR] update_single_history_job ({chart_id}): {e}")
 
 # --- API Routes ---
 
@@ -222,38 +239,59 @@ def run_startup_jobs():
         print(f"[Startup] Error during initial fetch: {e}")
 
 
+# Scheduler Initialization with Misfire Grace Time
+job_defaults = {
+    'misfire_grace_time': 3600 # 1 hour grace if startup delay occurs
+}
+scheduler = BackgroundScheduler(job_defaults=job_defaults)
+
 @app.on_event("startup")
 def start_scheduler():
-    # Run core data jobs once on startup to populate cache
+    # 1. Core data jobs (Sequential startup)
     scheduler.add_job(run_startup_jobs)
     
-    # Run heavy History job with 1 minute delay to avoid startup bottleneck
-    scheduler.add_job(update_history_job, next_run_time=datetime.now() + timedelta(minutes=1))
+    # 2. History Jobs (Spacing: 1 minute apart)
+    # Start after 2 minutes to let initial fetch finish
+    for i, (cid, ticker, src) in enumerate(HISTORY_TASKS):
+        delay = 2 + (i * 1) # 2m, 3m, 4m, ...
+        # Initial delayed run
+        scheduler.add_job(
+            update_single_history_job, 
+            next_run_time=datetime.now() + timedelta(minutes=delay),
+            args=[cid, ticker, src],
+            id=f"init_hist_{cid}"
+        )
+        # Recurring Cron (00:10+i, 12:10+i)
+        scheduler.add_job(
+            update_single_history_job, 
+            "cron", hour=0, minute=10+i, 
+            args=[cid, ticker, src],
+            id=f"cron_hist_0_{cid}"
+        )
+        scheduler.add_job(
+            update_single_history_job, 
+            "cron", hour=12, minute=10+i, 
+            args=[cid, ticker, src],
+            id=f"cron_hist_12_{cid}"
+        )
 
-    
+    # 3. Realtime Jobs
     # 30초: Stocks Realtime
     scheduler.add_job(update_realtime_stocks_job, "interval", seconds=30)
-
     # 5분: Rates & Exchange Realtime
     scheduler.add_job(update_realtime_rates_job, "interval", minutes=5)
     scheduler.add_job(update_realtime_exchange_job, "interval", minutes=5)
 
-    # 하루 2회 (00:00, 12:00): Daily Jobs (Formerly Rollover/Static)
-    # Applying strictly to all "daily" fetchers
+    # 4. Daily Category Updates (00:00, 12:00)
     daily_jobs = [
         update_daily_stocks_job, 
         update_daily_rates_job, 
         update_daily_exchange_job, 
         update_daily_economy_job
     ]
-    
     for job in daily_jobs:
         scheduler.add_job(job, "cron", hour=0, minute=0)
         scheduler.add_job(job, "cron", hour=12, minute=0)
-
-    # History Job (5분 오프셋)
-    scheduler.add_job(update_history_job, "cron", hour=0, minute=5)
-    scheduler.add_job(update_history_job, "cron", hour=12, minute=5)
 
 
     scheduler.start()
