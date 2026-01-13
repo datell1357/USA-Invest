@@ -482,7 +482,7 @@ def fetch_enara_foreign_holding():
     Fetches the latest KOSPI Foreign Ownership Amount and Ratio from e-Nara Index (index.go.kr).
     Source: Foreign securities investment status (monthly).
     """
-    url = "https://www.index.go.kr/unity/potal/eNara/sub/showStblGams3.do?stts_cd=108601&idx_cd=1086&freq=M&period=N"
+    url = os.getenv("ENARA_FOREIGN_BOND_URL", "https://www.index.go.kr/unity/potal/eNara/sub/showStblGams3.do?stts_cd=108601&idx_cd=1086&freq=M&period=N")
     headers = {
         "User-Agent": random.choice(USER_AGENTS),
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",

@@ -49,6 +49,8 @@ def safe_update_cache(category, new_data):
     """Updates the cache category with new keys, preserving existing ones."""
     if new_data:
         CACHE[category].update(new_data)
+        import gc
+        gc.collect() # Force free memory after data update
 
 # --- Stocks Jobs ---
 
@@ -129,6 +131,8 @@ def update_single_history_job(chart_id, ticker, source):
                 CACHE["history"] = {}
             CACHE["history"][chart_id] = data
             print(f"[JOB] Success history: {chart_id}")
+            import gc
+            gc.collect() # Immediate free after each history fetch
     except Exception as e:
         print(f"[ERROR] update_single_history_job ({chart_id}): {e}")
 
@@ -235,13 +239,17 @@ def run_startup_jobs():
         
         elapsed = time.time() - start_time
         print(f"[Startup] Initial data fetch completed in {elapsed:.2f} seconds.")
+        import gc
+        gc.collect()
     except Exception as e:
         print(f"[Startup] Error during initial fetch: {e}")
 
 
 # Scheduler Initialization with Misfire Grace Time
 job_defaults = {
-    'misfire_grace_time': 3600 # 1 hour grace if startup delay occurs
+    'misfire_grace_time': 3600, # 1 hour grace if startup delay occurs
+    'max_instances': 1,         # Prevents multiple instances of same job (Crucial for SegFault)
+    'coalesce': True            # Merge pending runs into one
 }
 scheduler = BackgroundScheduler(job_defaults=job_defaults)
 
@@ -250,14 +258,14 @@ def start_scheduler():
     # 1. Core data jobs (Sequential startup)
     scheduler.add_job(run_startup_jobs)
     
-    # 2. History Jobs (Spacing: 1 minute apart)
-    # Start after 2 minutes to let initial fetch finish
+    # 2. History Jobs (Spacing: 20 seconds apart)
+    # Start quickly (10s delay) to beat Render restart cycles
     for i, (cid, ticker, src) in enumerate(HISTORY_TASKS):
-        delay = 2 + (i * 1) # 2m, 3m, 4m, ...
+        delay_sec = 10 + (i * 20) # 10s, 30s, 50s, ...
         # Initial delayed run
         scheduler.add_job(
             update_single_history_job, 
-            next_run_time=datetime.now() + timedelta(minutes=delay),
+            next_run_time=datetime.now() + timedelta(seconds=delay_sec),
             args=[cid, ticker, src],
             id=f"init_hist_{cid}"
         )
@@ -298,4 +306,7 @@ except Exception as e:
     print(f"Failed to mount static files: {e}")
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    is_prod = os.getenv("PROD", "false").lower() == "true"
+    print(f"[Main] Starting server (PROD={is_prod})")
+    # Bind to 0.0.0.0 for Render compatibility
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=not is_prod)

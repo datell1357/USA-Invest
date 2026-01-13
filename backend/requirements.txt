@@ -8,8 +8,6 @@ numpy
 apscheduler
 fear-and-greed
 python-dotenv
-finance-datareader
 beautifulsoup4
-pykrx
 setuptools
 

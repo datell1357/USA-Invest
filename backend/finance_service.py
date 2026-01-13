@@ -4,10 +4,11 @@ import os
 import time
 from datetime import datetime, timedelta
 import crawler_service
-import FinanceDataReader as fdr
+# import FinanceDataReader as fdr # Removed for memory optimization
+import gc
 
-# FRED API Key configuration (Restored as requested)
-FRED_API_KEY = os.environ.get("FRED_API_KEY", "98f9a9461a5eed275514aad3fb514d53")
+# Environment Variable based configuration
+FRED_API_KEY = os.environ.get("FRED_API_KEY", "") # No more hardcoded default for security
 
 
 def get_ticker_data(ticker_symbol):
@@ -356,35 +357,28 @@ def get_daily_economy():
     result = {}
     
     # CCI (Consumer Confidence)
-    cci = crawler_service.fetch_investing_calendar_actual(
-        'https://kr.investing.com/economic-calendar/cb-consumer-confidence-48', 48, 'CCI'
-    )
+    cci_url = os.getenv("INVESTING_CCI_URL", "https://kr.investing.com/economic-calendar/cb-consumer-confidence-48")
+    cci = crawler_service.fetch_investing_calendar_actual(cci_url, 48, 'CCI')
     if cci: result['cci'] = cci
     
     # Unemployment
-    unemp = crawler_service.fetch_investing_calendar_actual(
-        'https://kr.investing.com/economic-calendar/unemployment-rate-300', 300, 'Unemployment'
-    )
+    unem_url = os.getenv("INVESTING_UNEMPLOYMENT_URL", "https://kr.investing.com/economic-calendar/unemployment-rate-300")
+    unemp = crawler_service.fetch_investing_calendar_actual(unem_url, 300, 'Unemployment')
     if unemp: result['unemployment'] = unemp
     
     # Non-Farm
-    nfp = crawler_service.fetch_investing_calendar_actual(
-        'https://kr.investing.com/economic-calendar/nonfarm-payrolls-227', 227, 'NFP'
-    )
+    nfp_url = os.getenv("INVESTING_NFP_URL", "https://kr.investing.com/economic-calendar/nonfarm-payrolls-227")
+    nfp = crawler_service.fetch_investing_calendar_actual(nfp_url, 227, 'NFP')
     if nfp: result['non_farm'] = nfp
         
     # PMI
-    pmi = crawler_service.fetch_investing_calendar_actual(
-        'https://kr.investing.com/economic-calendar/ism-manufacturing-pmi-173', 
-        173, 'PMI'
-    )
+    pmi_url = os.getenv("INVESTING_PMI_URL", "https://kr.investing.com/economic-calendar/ism-manufacturing-pmi-173")
+    pmi = crawler_service.fetch_investing_calendar_actual(pmi_url, 173, 'PMI')
     if pmi: result['pmi'] = pmi
     
     # High Yield Spread
-    # User Request: Use IndexerGo URL
-    high_yield = crawler_service.fetch_indexergo_data(
-        'https://www.indexergo.com/series/?frq=M&idxDetail=13404', 'HighYield'
-    )
+    hy_url = os.getenv("INDEXERGO_HIGH_YIELD_URL", "https://www.indexergo.com/series/?frq=M&idxDetail=13404")
+    high_yield = crawler_service.fetch_indexergo_data(hy_url, 'HighYield')
     if high_yield:
          result['high_yield'] = high_yield
     
@@ -401,7 +395,7 @@ def get_history_values_yf(ticker, period="1y"):
     try:
         t = yf.Ticker(ticker)
         # Fetch Monthly data
-        hist = t.history(period=period, interval="1mo")
+        hist = t.history(period=period, interval="1mo", threads=False)
         if hist.empty:
             return None
             
