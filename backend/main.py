@@ -261,18 +261,12 @@ def start_scheduler():
             args=[cid, ticker, src],
             id=f"init_hist_{cid}"
         )
-        # Recurring Cron (00:10+i, 12:10+i)
+        # Recurring Cron (01:10+i)
         scheduler.add_job(
             update_single_history_job, 
-            "cron", hour=0, minute=10+i, 
+            "cron", hour=1, minute=10+i, 
             args=[cid, ticker, src],
-            id=f"cron_hist_0_{cid}"
-        )
-        scheduler.add_job(
-            update_single_history_job, 
-            "cron", hour=12, minute=10+i, 
-            args=[cid, ticker, src],
-            id=f"cron_hist_12_{cid}"
+            id=f"cron_hist_01_{cid}"
         )
 
     # 3. Realtime Jobs

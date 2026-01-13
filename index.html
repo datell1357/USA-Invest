@@ -468,47 +468,20 @@
     </main>
 
     <script>
-
-        let nextUpdateTimeMs = null;
-        let timerTriggered = false;
-
-        async function fetchTimer() {
-            try {
-                const res = await fetch(`${API_BASE_URL.replace('/api/finance', '')}/api/timer`);
-                const data = await res.json();
-
-                if (!data.next_update) return;
-
-                const now = Date.now();
-                // Backend job might take a moment. If next_update is in past/present, retry.
-                if (data.next_update > now + 2000) {
-                    nextUpdateTimeMs = data.next_update;
-                    timerTriggered = false; // Valid future time received, reset trigger
-                } else {
-                    console.log("Waiting for new schedule...", data.next_update, now);
-                    // Still old schedule? Retry fetch soon
-                    setTimeout(fetchTimer, 2000);
-                }
-            } catch (e) {
-                console.error("Timer fetch failed", e);
-                setTimeout(fetchTimer, 5000);
-            }
-        }
+        const API_BASE_URL = 'https://usa-invest.onrender.com/api/finance';
 
         const CATEGORIES = {
             stocks: {
-                layoutClass: 'grid-7-3', // Changed to 7:3
+                layoutClass: 'grid-7-3',
                 groups: [
                     {
                         id: 'us_market',
-                        label: '미국 주요 지수', // Renamed
-                        type: 'indices_2x3_grid', // New type for 2 columns x 3 rows
+                        label: '미국 주요 지수',
+                        type: 'indices_2x3_grid',
                         items: [
-                            // Left Col
                             { id: 'sp_futures', label: 'S&P 500', url: 'https://kr.investing.com/indices/us-spx-500-futures' },
                             { id: 'dow_futures', label: 'DOW', url: 'https://kr.investing.com/indices/us-30-futures' },
                             { id: 'nasdaq_futures', label: 'NASDAQ', url: 'https://kr.investing.com/indices/nq-100-futures' },
-                            // Right Col
                             { id: 'wti', label: 'WTI 유가/원자재', url: 'https://kr.investing.com/commodities/crude-oil' },
                             { id: 'russell', label: '러셀 2000', url: 'https://kr.investing.com/indices/us-small-cap-2000' },
                             { id: 'high_yield', label: '하이일드 스프레드', url: 'https://www.indexergo.com/series/?frq=M&idxDetail=13404' }
@@ -598,43 +571,40 @@
             }
         };
 
-        // Initial Empty State - Populated by Backend API
-        let MOCK_DATA = {
-            stocks: {},
-            economy: {},
-            rates: {},
-            exchange: {}
-        };
-
-        const API_BASE_URL = 'https://usa-invest.onrender.com/api/finance';
-        //const API_BASE_URL = "http://127.0.0.1:8000/api/finance";
-
-
+        // Cache Objects
+        let MOCK_DATA = { stocks: {}, economy: {}, rates: {}, exchange: {} };
+        let HISTORY_DATA = {};
         let currentCategory = 'stocks';
         let chartInstances = {};
+        let nextUpdateTimeMs = null;
+        let timerTriggered = false;
+        let timerRunning = false;
 
         window.onload = async () => {
-            // Update Russell URL
+            // Restore from Persistence BEFORE initial render
+            restoreFromPersistence();
+
+            // Russell URL Tweak
             const russellItem = CATEGORIES.stocks.groups[0].items.find(i => i.id === 'russell');
-            if (russellItem) {
-                russellItem.url = 'https://www.google.com/finance/quote/RUT:INDEXRUSSELL?hl=ko';
-            }
+            if (russellItem) russellItem.url = 'https://www.google.com/finance/quote/RUT:INDEXRUSSELL?hl=ko';
 
             updateDate();
-
-            // Initial render (empty)
             renderLayout(currentCategory);
 
-            // Fetch Data
             await fetchAllData();
-
-            // Timer Sync with Backend
             await fetchTimer();
-
-            // Start Countdown
             startCountdown();
         };
 
+        function restoreFromPersistence() {
+            try {
+                const savedData = localStorage.getItem('USA_INVEST_MOCK_DATA');
+                if (savedData) Object.assign(MOCK_DATA, JSON.parse(savedData));
+                const savedHistory = localStorage.getItem('USA_INVEST_HISTORY');
+                if (savedHistory) Object.assign(HISTORY_DATA, JSON.parse(savedHistory));
+                console.log('[Persistence] Data restored');
+            } catch (e) { console.error('[Persistence] Restore failed', e); }
+        }
 
         function updateDate() {
             const now = new Date();
@@ -653,39 +623,41 @@
             renderLayout(cat);
         }
 
-        let timerRunning = false;
+        async function fetchTimer() {
+            try {
+                const res = await fetch(`${API_BASE_URL.replace('/api/finance', '')}/api/timer`);
+                const data = await res.json();
+                if (!data.next_update) return;
+                const now = Date.now();
+                if (data.next_update > now + 2000) {
+                    nextUpdateTimeMs = data.next_update;
+                    timerTriggered = false;
+                } else {
+                    setTimeout(fetchTimer, 2000);
+                }
+            } catch (e) {
+                setTimeout(fetchTimer, 5000);
+            }
+        }
 
         function startCountdown() {
             if (timerRunning) return;
             timerRunning = true;
-
             setInterval(() => {
                 if (!nextUpdateTimeMs) return;
-
                 const now = Date.now();
-                const diffSec = Math.max(
-                    Math.floor((nextUpdateTimeMs - now) / 1000),
-                    0
-                );
-
-                const timerEl = document.getElementById("refresh-timer");
-                timerEl.textContent = `다음 갱신까지: ${diffSec}초`;
-
-                // ✅ 0초 도달 시 단 한 번만 실행
+                const diffSec = Math.max(Math.floor((nextUpdateTimeMs - now) / 1000), 0);
+                document.getElementById("refresh-timer").textContent = `다음 갱신까지: ${diffSec}초`;
                 if (diffSec === 0 && !timerTriggered) {
                     timerTriggered = true;
-
-                    fetchAllData(); // 이미 갱신된 캐시 읽기
-                    fetchTimer();   // 다음 next_update 재동기화
+                    fetchAllData();
+                    fetchTimer();
                 }
             }, 1000);
         }
 
-
-
         async function fetchAllData() {
             try {
-                // Parallel Fetch
                 const [stocks, economy, rates, exchange, _history] = await Promise.all([
                     fetch(`${API_BASE_URL}/stocks`).then(r => r.json()),
                     fetch(`${API_BASE_URL}/economy`).then(r => r.json()),
@@ -694,194 +666,139 @@
                     fetchHistoryData()
                 ]);
 
-                if (stocks) MOCK_DATA.stocks = stocks;
-                if (economy) MOCK_DATA.economy = economy;
-                if (rates) MOCK_DATA.rates = rates;
-                if (exchange) MOCK_DATA.exchange = exchange;
+                if (stocks && Object.keys(stocks).length > 0) Object.assign(MOCK_DATA.stocks, stocks);
+                if (economy && Object.keys(economy).length > 0) Object.assign(MOCK_DATA.economy, economy);
+                if (rates && Object.keys(rates).length > 0) Object.assign(MOCK_DATA.rates, rates);
+                if (exchange && Object.keys(exchange).length > 0) Object.assign(MOCK_DATA.exchange, exchange);
 
-                // Re-render current category with data
-                renderLayout(currentCategory);
-                console.log('Backend Data Loaded:', MOCK_DATA);
+                localStorage.setItem('USA_INVEST_MOCK_DATA', JSON.stringify(MOCK_DATA));
+                updateUI(currentCategory, MOCK_DATA[currentCategory]);
+            } catch (e) { console.error("fetchAllData failed:", e); }
+        }
 
-            } catch (e) {
-                console.error("Backend connection failed:", e);
-                // Optional: alert('Data sync failed. Check server.');
-            }
+        async function fetchHistoryData() {
+            try {
+                const res = await fetch(`${API_BASE_URL}/history`);
+                const data = await res.json();
+                if (data && Object.keys(data).length > 0) {
+                    Object.assign(HISTORY_DATA, data);
+                    localStorage.setItem('USA_INVEST_HISTORY', JSON.stringify(HISTORY_DATA));
+                }
+                return data;
+            } catch (e) { return null; }
         }
 
         function renderLayout(category) {
             const main = document.getElementById('main-content');
+            if (main.getAttribute('data-current-cat') === category) {
+                updateUI(category, MOCK_DATA[category]);
+                return;
+            }
+            main.setAttribute('data-current-cat', category);
             main.innerHTML = '';
             Object.values(chartInstances).forEach(c => c.destroy());
             chartInstances = {};
 
             const config = CATEGORIES[category];
-
-            // Header
             const cardHeader = document.createElement('div');
             cardHeader.className = 'section-header';
             cardHeader.innerHTML = `<div class="section-bar"></div><div class="section-title">주요 지표</div>`;
             main.appendChild(cardHeader);
 
-            // Cards
-            const cardsSection = document.createElement('div');
             const grid = document.createElement('div');
             grid.className = `dashboard-grid ${config.layoutClass || ''}`;
             config.groups.forEach(group => grid.appendChild(createCard(group)));
-            cardsSection.appendChild(grid);
-            main.appendChild(cardsSection);
+            main.appendChild(grid);
 
-            // Charts
             if (config.charts) {
                 const chartHeader = document.createElement('div');
                 chartHeader.className = 'section-header';
                 chartHeader.innerHTML = `<div class="section-bar"></div><div class="section-title">상세 그래프</div>`;
                 main.appendChild(chartHeader);
-
                 const cGrid = document.createElement('div');
                 cGrid.className = 'charts-grid';
                 config.charts.forEach(c => cGrid.appendChild(createChartCard(c)));
                 main.appendChild(cGrid);
             }
-
-            // Populate Data
             updateUI(category, MOCK_DATA[category]);
-        }
-
-        function createIndicesRow(item) {
-            const row = document.createElement('div');
-            row.className = 'indices-row-3col';
-            // Flex layout: Label(Left) - Value(Center) - Change&Pct(Right)
-            row.style.display = 'flex';
-            row.id = `card-item-${item.id}`;
-
-            if (item.url) row.onclick = () => window.open(item.url, '_blank');
-
-
-            row.innerHTML = `
-                <div class="idx-name" style="flex:1; text-align:left;">${item.label}</div>
-                <div class="idx-val center-align" id="val-${item.id}" style="flex:1; text-align:center; font-size:1.1rem; font-weight:700; color:#fff;">...</div>
-                <div class="idx-right-group" style="flex:1; text-align:right;">
-                     <!-- Combined Change and Percent -->
-                     <div class="idx-change loading-pulse" id="ch-${item.id}">--</div>
-                     <div id="date-row-${item.id}" style="display:none; font-size: 0.75rem; color: #6c757d; margin-top: 2px; text-align: right;">
-                    <span id="next-${item.id}">--</span>
-                </div>
-                </div>
-            `;
-            return row;
         }
 
         function createCard(group) {
             const div = document.createElement('div');
             div.className = 'card';
+            div.innerHTML = `<div class="card-header-title">${group.label}</div>`;
 
-            if (group.type === 'indices_2x3_grid') {
-                div.innerHTML = `<div class="card-header-title">${group.label}</div>`;
+            if (group.type === 'indices_3col' || group.type === 'indices_2x3_grid') {
                 const container = document.createElement('div');
-                container.className = 'indices-2col-container';
-
-                // Split into 2 arrays: first 3, and rest
-                const leftItems = group.items.slice(0, 3);
-                const rightItems = group.items.slice(3, 6);
-
+                container.className = group.type === 'indices_2x3_grid' ? 'indices-2col-container' : '';
                 const leftCol = document.createElement('div');
                 leftCol.className = 'indices-col';
-                leftItems.forEach(item => {
-                    leftCol.appendChild(createIndicesRow(item));
-                });
-
                 const rightCol = document.createElement('div');
                 rightCol.className = 'indices-col';
-                rightItems.forEach(item => {
-                    rightCol.appendChild(createIndicesRow(item));
+
+                group.items.forEach((item, idx) => {
+                    const row = createIndicesRow(item);
+                    if (group.type === 'indices_2x3_grid') {
+                        if (idx < 3) leftCol.appendChild(row);
+                        else rightCol.appendChild(row);
+                    } else {
+                        container.appendChild(row);
+                    }
                 });
 
-                container.appendChild(leftCol);
-                container.appendChild(rightCol);
+                if (group.type === 'indices_2x3_grid') {
+                    container.appendChild(leftCol);
+                    container.appendChild(rightCol);
+                }
                 div.appendChild(container);
-
-            } else if (group.type === 'indices_3col') {
-                div.innerHTML = `<div class="card-header-title">${group.label}</div>`;
+            } else if (group.type === 'sentiment_list' || group.type === 'std_list') {
                 const list = document.createElement('div');
-                list.className = 'indices-list';
-                group.items.forEach(item => {
-                    list.appendChild(createIndicesRow(item));
-                });
-                div.appendChild(list);
-
-            } else if (group.type === 'std_list') {
-                div.innerHTML = `<div class="card-header-title">${group.label}</div>`;
-                const list = document.createElement('div');
-                list.className = 'std-list';
-                group.items.forEach(item => {
-                    const container = document.createElement('div');
-                    container.id = `card-item-${item.id}`;
-                    container.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-                    container.style.paddingBottom = '0.6rem';
-                    container.style.marginBottom = '0.6rem';
-                    if (item.url) { container.style.cursor = 'pointer'; container.onclick = () => window.open(item.url, '_blank'); }
-
-
-                    container.innerHTML = `
-                        <div class="std-row" style="display:flex; justify-content:space-between; align-items:center;">
-                            <span class="std-label" style="color:#94a3b8;">${item.label}</span>
-                            <div style="text-align:right;">
-                                <div class="std-val loading-pulse" id="val-${item.id}" style="font-size:1.1rem; font-weight:700; color:#fff;">...</div>
-                                <div class="std-change loading-pulse" id="ch-${item.id}" style="font-size:0.85rem;">--</div>
-                            </div>
-                        </div>
-                        <div id="date-row-${item.id}" style="display:none; text-align:right; font-size:0.75rem; color:#64748b; margin-top:2px;">
-                            <span id="date-${item.id}"></span> | 다음: <span id="next-${item.id}"></span>
-                        </div>
-                    `;
-                    list.appendChild(container);
-                });
-                div.appendChild(list);
-
-            } else if (group.type === 'sentiment_list') {
-                div.innerHTML = `<div class="card-header-title">${group.label}</div>`;
-                const list = document.createElement('div');
-                list.className = 'sentiment-list';
+                list.className = group.type === 'sentiment_list' ? 'sentiment-list' : '';
                 group.items.forEach(item => {
                     const row = document.createElement('div');
-                    row.className = 'sentiment-row';
+                    row.className = group.type === 'sentiment_list' ? 'sentiment-row' : 'std-row';
                     row.id = `card-item-${item.id}`;
-                    if (item.url) row.onclick = () => window.open(item.url, '_blank');
+                    if (item.url) { row.style.cursor = 'pointer'; row.onclick = () => window.open(item.url, '_blank'); }
 
-                    row.innerHTML = `
-                        <div class="sentiment-label">${item.label}</div>
-                        <div class="sentiment-val-group">
-                             <div class="sentiment-val loading-pulse" id="val-${item.id}">...</div>
-                             <div class="sentiment-change loading-pulse" id="ch-${item.id}">--</div>
-                        </div>
-                     `;
+                    if (group.type === 'sentiment_list') {
+                        row.innerHTML = `
+                            <span class="sentiment-label">${item.label}</span>
+                            <div style="text-align:right">
+                                <div class="sentiment-val loading-pulse" id="val-${item.id}">...</div>
+                                <div class="sentiment-change loading-pulse" id="ch-${item.id}">--</div>
+                            </div>
+                        `;
+                    } else {
+                        row.innerHTML = `
+                            <span class="std-label">${item.label}</span>
+                            <div>
+                                <div class="std-val loading-pulse" id="val-${item.id}">...</div>
+                                <div class="std-change loading-pulse" id="ch-${item.id}">--</div>
+                            </div>
+                        `;
+                    }
                     list.appendChild(row);
                 });
                 div.appendChild(list);
-
             } else if (group.type === 'val_with_dates') {
                 const item = group.items[0];
                 div.id = `card-item-${item.id}`;
                 if (item.url) { div.style.cursor = 'pointer'; div.onclick = () => window.open(item.url, '_blank'); }
-
                 div.innerHTML = `
                     <div class="sv-top-row">
                         <span class="sv-label">${group.label}</span>
                         <span class="sv-badge loading-pulse" id="ch-${item.id}">--</span>
                     </div>
                     <div class="sv-value loading-pulse" id="val-${item.id}">...</div>
-                    <div class="sv-footer">
+                    <div class="sv-footer" id="date-row-${item.id}" style="display:none">
                         <span>발표: <span id="date-${item.id}">--</span></span>
                         <span>다음: <span id="next-${item.id}">--</span></span>
                     </div>
                  `;
-
             } else if (group.type === 'val_simple') {
                 const item = group.items[0];
                 div.id = `card-item-${item.id}`;
                 if (item.url) { div.style.cursor = 'pointer'; div.onclick = () => window.open(item.url, '_blank'); }
-
                 div.innerHTML = `
                     <div class="sv-top-row">
                         <span class="sv-label">${group.label}</span>
@@ -893,7 +810,6 @@
                 const item = group.items[0];
                 div.id = `card-item-${item.id}`;
                 if (item.url) { div.style.cursor = 'pointer'; div.onclick = () => window.open(item.url, '_blank'); }
-
                 div.innerHTML = `
                     <div class="large-center-box">
                         <span style="font-size:1.2rem; color:#94a3b8; margin-bottom:0.8rem">${item.label}</span>
@@ -903,6 +819,21 @@
                 `;
             }
             return div;
+        }
+
+        function createIndicesRow(item) {
+            const row = document.createElement('div');
+            row.className = 'indices-row-3col';
+            row.id = `card-item-${item.id}`;
+            if (item.url) { row.style.cursor = 'pointer'; row.onclick = () => window.open(item.url, '_blank'); }
+            row.innerHTML = `
+                <div class="idx-name">${item.label}</div>
+                <div class="idx-price-center loading-pulse" id="val-${item.id}">...</div>
+                <div class="idx-right-group">
+                    <div class="idx-change-val loading-pulse" id="ch-${item.id}">--</div>
+                </div>
+            `;
+            return row;
         }
 
         function createChartCard(c) {
@@ -917,25 +848,18 @@
             return div;
         }
 
-        async function fetchData(category) {
-            updateUI(category, MOCK_DATA[category]);
-        }
-
         function updateUI(category, data) {
             const config = CATEGORIES[category];
+            if (!data) return;
 
-            // 1. Update Cards
             config.groups.forEach(g => {
                 g.items.forEach(item => {
                     const d = data[item.id];
                     if (!d) return;
 
-                    // Update Dynamic URL if provided by backend (fallback triggered)
                     if (d.url) {
                         const clickable = document.getElementById(`card-item-${item.id}`);
-                        if (clickable) {
-                            clickable.onclick = () => window.open(d.url, '_blank');
-                        }
+                        if (clickable) clickable.onclick = () => window.open(d.url, '_blank');
                     }
 
                     const valEl = document.getElementById(`val-${item.id}`);
@@ -952,213 +876,81 @@
                     }
 
                     if (chEl) {
-                        // High Yield special: Date row visibility check
-                        if ((item.id === 'high_yield' || g.type === 'indices_3col' || g.type === 'indices_2x3_grid') && d.next) {
-                            if (dateRowEl) {
-                                dateRowEl.style.display = 'block';
-                                const pDate = document.getElementById(`date-${item.id}`);
-                                const pNext = document.getElementById(`next-${item.id}`);
-
-                                if (pDate) pDate.innerText = d.date || '';
-                                if (pNext) pNext.innerText = d.next || d.next_date || '';
-                            }
-                        }
-
-                        // Hide change for Policy Rates
                         if (item.id === 'fear_greed' || item.id === 'fed_rate' || item.id === 'jp_policy' || item.id === 'kr_base') {
                             chEl.style.display = 'none';
-                        } else if (item.id === 'non_farm') {
-                            chEl.innerText = '-';
-                            chEl.className = 'sv-badge';
                         } else {
                             let raw = d.change || "0";
                             let rawPct = d.percent;
                             if (canFormat(raw)) raw = formatNumber(raw);
-
                             const dir = getDirection(d.change);
-
-                            // Indices Grid: Single Line Format
-                            if (g.type === 'indices_3col' || g.type === 'indices_2x3_grid') {
-                                // Format: -1.75 (-0.03%)
-                                let disp = raw;
-                                if (rawPct) disp += ` (${formatNumber(rawPct)}%)`;
-
-                                chEl.innerText = disp;
-                                chEl.className = 'indices-change-val';
-                                if (dir === 'up') chEl.classList.add('c-up');
-                                else if (dir === 'down') chEl.classList.add('c-down');
-
-                            } else {
-                                // Standard / SV
-                                let disp = raw;
-                                if (rawPct) disp += ` (${formatNumber(rawPct)}%)`;
-                                chEl.innerText = disp;
-
-                                chEl.className = '';
-                                if (g.type === 'val_with_dates' || g.type === 'val_simple') {
-                                    chEl.className = 'sv-badge';
-                                    if (dir === 'up') chEl.classList.add('bg-up');
-                                    else if (dir === 'down') chEl.classList.add('bg-down');
-                                } else {
-                                    chEl.style.fontWeight = '500';
-                                    if (dir === 'up') chEl.classList.add('c-up');
-                                    else if (dir === 'down') chEl.classList.add('c-down');
-                                }
-                            }
+                            let disp = raw;
+                            if (rawPct) disp += ` (${formatNumber(rawPct)}%)`;
+                            chEl.innerText = disp;
+                            chEl.className = (g.type === 'indices_2x3_grid') ? 'idx-change-val' : 'sv-badge';
+                            if (dir === 'up') chEl.classList.add(g.type === 'indices_2x3_grid' ? 'c-up' : 'bg-up');
+                            else if (dir === 'down') chEl.classList.add(g.type === 'indices_2x3_grid' ? 'c-down' : 'bg-down');
                             chEl.classList.remove('loading-pulse');
                         }
                     }
 
-
-
-                    // General Date Handling
-                    if (d.date || d.next || d.next_date) {
+                    if (d.date || d.next_date) {
                         if (dateRowEl) dateRowEl.style.display = 'block';
                         if (dateEl) dateEl.innerText = d.date || '';
-                        if (nextEl) {
-                            if (d.next_date && d.next_date.trim() !== '') {
-                                nextEl.innerText = d.next_date;
-                            } else if (d.next && d.next.trim() !== '') { // Keep d.next if d.next_date is empty
-                                nextEl.innerText = d.next;
-                            } else {
-                                nextEl.innerText = '미발표';
-                                nextEl.style.color = '#64748b'; // Dim color for n/a
-                            }
-                        }
+                        if (nextEl) nextEl.innerText = d.next_date || d.next || '미발표';
                     }
 
-                    // Special Logic for e-Nara Foreign Holding (foreign_bond)
                     if (item.id === 'foreign_bond') {
-                        if (valEl) {
-                            valEl.style.fontSize = '1.0rem'; // Adjust for Amount+Unit
-                        }
+                        if (valEl) valEl.style.fontSize = '1.0rem';
                         if (chEl) {
                             chEl.innerText = d.percent;
                             chEl.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-                            chEl.style.color = '#fff';
                             chEl.classList.remove('bg-up', 'bg-down', 'c-up', 'c-down', 'loading-pulse');
                         }
-                        // Hide 'Next' date as e-Nara is manual/monthly
-                        if (nextEl && nextEl.parentElement) {
-                            nextEl.parentElement.style.display = 'none';
-                        }
                     }
-
                 });
             });
 
-            // 2. Update Charts
             if (config.charts) {
                 config.charts.forEach(c => {
-                    const ctx = document.getElementById(c.id);
-
-                    // Determine current value for the chart
-                    let dataId = null;
-                    if (c.id === 'sp_chart') dataId = 'sp_futures';
-                    else if (c.id === 'dow_chart') dataId = 'dow_futures';
-                    else if (c.id === 'nasdaq_chart') dataId = 'nasdaq_futures';
-                    else if (c.id === 'cci_chart') dataId = 'cci';
-                    else if (c.id === 'unem_chart') dataId = 'unemployment';
-                    else if (c.id === 'us10_chart') dataId = 'us_10y';
-                    else if (c.id === 'us2_chart') dataId = 'us_2y';
-                    else if (c.id === 'spread_chart') dataId = 'us_10_2_spread';
-                    else if (c.id === 'dxy_chart') dataId = 'dxy';
-                    else if (c.id === 'krw_chart') dataId = 'usd_krw';
-
-                    let currentVal = 100;
-                    // Attempt to find data in current category
-                    if (dataId && MOCK_DATA[category] && MOCK_DATA[category][dataId]) {
-                        let raw = MOCK_DATA[category][dataId].value;
-                        let cleanVal = raw.replace(/,/g, '').replace(/%/g, '').replace(/K/g, '').replace(/억\$/g, '').replace(/조원/g, '');
-                        let parsed = parseFloat(cleanVal);
-                        if (!isNaN(parsed)) currentVal = parsed;
-                    } else if (dataId) {
-                        // Search other categories
-                        for (let cat in MOCK_DATA) {
-                            if (MOCK_DATA[cat][dataId]) {
-                                let raw = MOCK_DATA[cat][dataId].value;
-                                let cleanVal = raw.replace(/,/g, '').replace(/%/g, '').replace(/K/g, '').replace(/억\$/g, '').replace(/조원/g, '');
-                                let parsed = parseFloat(cleanVal);
-                                if (!isNaN(parsed)) currentVal = parsed;
-                                break;
-                            }
-                        }
+                    const canvas = document.getElementById(c.id);
+                    if (canvas) {
+                        const itemData = data[c.id.replace('_chart', '')] || {};
+                        initChart(canvas, c.id, itemData.value);
                     }
-
-                    if (ctx && !chartInstances[c.id]) initChart(ctx, c.id, currentVal);
                 });
             }
         }
 
-
-
-        // --- History Data ---
-        let HISTORY_DATA = {};
-
-        async function fetchHistoryData() {
-            try {
-                const res = await fetch(`${API_BASE_URL}/history`);
-                if (res.ok) {
-                    HISTORY_DATA = await res.json();
-                    console.log("[Front] History fetched:", Object.keys(HISTORY_DATA));
-                }
-            } catch (e) {
-                console.error("[Front] History fetch failed:", e);
-            }
-        }
-
-
-        // ... (Charts)
-
         function initChart(ctx, id, currentVal) {
-            // Default Empty
             let values = [];
             let labels = [];
 
-            // 1. Get History
             if (HISTORY_DATA[id]) {
-                const h = HISTORY_DATA[id];
-                if (h.values && h.dates) {
-                    values = [...h.values]; // Copy
-                    labels = [...h.dates];
-                }
+                values = [...(HISTORY_DATA[id].values || [])];
+                labels = [...(HISTORY_DATA[id].dates || [])];
             }
 
-            // 2. Append Current Value (Realtime connection)
-            // Only if currentVal is valid
-            if (currentVal !== null && !isNaN(currentVal)) {
-                // Check last date to avoid dups? 
-                // Simple logic: Just append "Now" or Today
-                values.push(currentVal);
-                labels.push("Current");
+            if (currentVal !== null && !isNaN(parseFloat(currentVal))) {
+                values.push(parseFloat(currentVal));
+                labels.push("Now");
             }
 
-            // Fallback if no data
             if (values.length === 0) {
-                values = [currentVal || 100, currentVal || 100];
-                labels = ["Start", "End"];
+                !values =[100, 100]; labels = ["S", "E"];
             }
 
-            // Determine Color
-            const startVal = values[0];
-            const endVal = values[values.length - 1];
-            const isUp = endVal >= startVal;
-            const color = isUp ? '#f87171' : '#60a5fa'; // Red : Blue
+            const isUp = values[values.length - 1] >= values[0];
+            const color = isUp ? '#f87171' : '#60a5fa';
+            const formattedLabels = labels.map(l => (l === "Now" ? "Now" : (l.length >= 7 ? `${l.substring(2, 4)}.${l.substring(5, 7)}` : l)));
 
-            // Simplify Labels (Show only start/end or every Nth?)
-            // Chart.js handles this automatically usually, but let's hide x-grid
-
-
-            // Format Labels: Convert YYYY-MM-DD to YY.MM (e.g., 24.12)
-            const formattedLabels = labels.map(l => {
-                if (l === "Current" || l === "Now") return "Now";
-                // l is "YYYY-MM-DD"
-                if (l.length >= 7) {
-                    return `${l.substring(2, 4)}.${l.substring(5, 7)}`;
-                }
-                return l;
-            });
-
+            if (chartInstances[id]) {
+                const chart = chartInstances[id];
+                chart.data.labels = formattedLabels;
+                chart.data.datasets[0].data = values;
+                chart.data.datasets[0].borderColor = color;
+                chart.update('none');
+                return;
+            }
 
             chartInstances[id] = new Chart(ctx, {
                 type: 'line',
@@ -1168,47 +960,32 @@
                         data: values,
                         borderColor: color,
                         borderWidth: 2,
-                        pointRadius: 2, // Show small points for month
-                        pointHoverRadius: 4,
+                        pointRadius: 2,
                         fill: true,
                         backgroundColor: (ctx) => {
                             const grad = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.height);
-                            grad.addColorStop(0, isUp ? 'rgba(248, 113, 113, 0.25)' : 'rgba(96, 165, 250, 0.25)');
-                            grad.addColorStop(1, 'rgba(0,0,0,0)');
+                            grad.addColorStop(0, isUp ? 'rgba(248, 113, 113, 0.2)' : 'rgba(96, 165, 250, 0.2)');
+                            grad.addColorStop(1, 'transparent');
                             return grad;
                         },
-                        tension: 0.4 // Smoother curve for monthly
+                        tension: 0.4
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+                    plugins: { legend: { display: false } },
                     scales: {
-                        x: {
-                            display: true, // Show X Axis
-                            grid: { display: false },
-                            ticks: {
-                                color: '#94a3b8',
-                                font: { size: 10 },
-                                maxRotation: 0,
-                                autoSkip: false, // Show All Labels
-                                maxTicksLimit: 15
-                            }
-                        },
-
-                        y: { display: true, position: 'left', grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b', font: { size: 9 } }, border: { display: false } }
-                    },
-                    interaction: { intersect: false, mode: 'nearest', axis: 'x' }
+                        x: { display: true, grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 }, maxTicksLimit: 8 } },
+                        y: { display: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b', font: { size: 9 } } }
+                    }
                 }
             });
-
         }
 
         function canFormat(v) { return v && !isNaN(parseFloat(v)); }
         function formatNumber(v) { let f = parseFloat(v); return (f > 0 ? '+' : '') + f.toFixed(2); }
         function getDirection(v) { if (String(v).includes('-')) return 'down'; if (String(v).includes('+') || parseFloat(v) > 0) return 'up'; return 'neutral'; }
-
     </script>
 </body>
 
